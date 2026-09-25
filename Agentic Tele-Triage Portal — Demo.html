@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Agentic Tele-Triage Portal</title>
+<style>
+:root{
+  --bg:#F5F7F9; --panel:#FFFFFF; --border:#DDE3E8; --text:#12202B; --muted:#5B6B76;
+  --accent:#0D7C74; --accent-dim:#0D7C7420; --green:#1A8A4A; --green-bg:#E7F5EC;
+  --amber:#B4740E; --amber-bg:#FBF0DD; --red:#C23A2E; --red-bg:#FBE7E4;
+  --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0D1417; --panel:#151F24; --border:#26343B; --text:#E7EEF1; --muted:#8DA0AB;
+    --green-bg:#12291D; --amber-bg:#2B2210; --red-bg:#2B1815;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0D1417; --panel:#151F24; --border:#26343B; --text:#E7EEF1; --muted:#8DA0AB;
+  --green-bg:#12291D; --amber-bg:#2B2210; --red-bg:#2B1815;
+}
+*{box-sizing:border-box;}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+header{
+  padding:20px 20px 0; border-bottom:1px solid var(--border); background:var(--panel);
+  padding-top:calc(20px + env(safe-area-inset-top,0px));
+}
+header h1{margin:0 0 2px; font-size:1.25rem; letter-spacing:-0.01em;}
+header p{margin:0 0 16px; color:var(--muted); font-size:0.85rem;}
+nav{display:flex; gap:4px; overflow-x:auto;}
+nav button{
+  background:none; border:none; padding:10px 14px; font-size:0.85rem; color:var(--muted);
+  cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap; font-weight:600;
+}
+nav button.active{color:var(--accent); border-bottom-color:var(--accent);}
+main{max-width:760px; margin:0 auto; padding:20px 16px 60px;}
+.view{display:none;} .view.active{display:block;}
+.card{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:18px; margin-bottom:14px;}
+label{display:block; font-size:0.8rem; color:var(--muted); margin-bottom:5px; font-weight:600;}
+select,input[type=text]{
+  width:100%; padding:10px; border:1px solid var(--border); border-radius:7px;
+  background:var(--bg); color:var(--text); font-size:0.95rem; margin-bottom:14px;
+}
+button.primary{
+  background:var(--accent); color:#fff; border:none; padding:11px 18px; border-radius:7px;
+  font-size:0.9rem; font-weight:600; cursor:pointer;
+}
+button.ghost{
+  background:transparent; border:1px solid var(--border); color:var(--text);
+  padding:7px 12px; border-radius:6px; font-size:0.8rem; cursor:pointer; font-weight:600;
+}
+.badge{display:inline-block; padding:2px 9px; border-radius:20px; font-size:0.72rem; font-weight:700;}
+.badge.Green{background:var(--green-bg); color:var(--green);}
+.badge.Yellow{background:var(--amber-bg); color:var(--amber);}
+.badge.Red{background:var(--red-bg); color:var(--red);}
+.agent-step{border-left:3px solid var(--accent); padding:4px 0 4px 14px; margin-bottom:14px;}
+.agent-step h3{margin:0 0 4px; font-size:0.85rem;}
+.agent-step p{margin:0; font-size:0.88rem; color:var(--muted); line-height:1.45;}
+.mono{font-family:var(--mono); font-size:0.85rem;}
+table{width:100%; border-collapse:collapse; font-size:0.85rem;}
+th,td{text-align:left; padding:8px 6px; border-bottom:1px solid var(--border);}
+th{color:var(--muted); font-weight:600; font-size:0.72rem; text-transform:uppercase; letter-spacing:.03em;}
+.stat-low{color:var(--red); font-weight:700;} .stat-mid{color:var(--amber); font-weight:700;}
+.overflow-x{overflow-x:auto;}
+.alert{border-radius:8px; padding:12px 14px; margin-bottom:10px; background:var(--amber-bg); border:1px solid var(--amber);}
+.alert.crit{background:var(--red-bg); border-color:var(--red);}
+.alert p{margin:0 0 8px; font-size:0.85rem;}
+.empty{color:var(--muted); font-size:0.88rem; padding:20px 0; text-align:center;}
+.patient-row{display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); gap:10px;}
+.patient-row:last-child{border-bottom:none;}
+.pname{font-weight:600; font-size:0.9rem;} .psub{font-size:0.78rem; color:var(--muted);}
+.bar-track{background:var(--border); border-radius:5px; height:6px; width:80px; overflow:hidden;}
+.bar-fill{background:var(--accent); height:100%;}
+</style>
+</head>
+<body>
+<header>
+  <h1>Agentic Tele-Triage Portal</h1>
+  <p>Multi-agent state healthcare routing — demo simulation</p>
+  <nav>
+    <button data-tab="intake" class="active">New Patient</button>
+    <button data-tab="pipeline">Agent Pipeline</button>
+    <button data-tab="doctor">Doctor Queue</button>
+    <button data-tab="command">Command Center</button>
+  </nav>
+</header>
+<main>
+
+<div class="view active" id="intake">
+  <div class="card">
+    <label>Patient name</label>
+    <input type="text" id="pname" placeholder="e.g. Ravi Kumar">
+    <label>Lab report / case type</label>
+    <select id="ptype">
+      <option value="normal">Routine fever checkup — vitals normal</option>
+      <option value="moderate">Dengue — moderate, platelets low</option>
+      <option value="severe">Dengue — severe, platelets critical</option>
+      <option value="cardiac">Acute cardiac event</option>
+    </select>
+    <button class="primary" onclick="submitPatient()">Run AI Triage</button>
+  </div>
+  <div class="card">
+    <p class="psub">This simulates a lab report upload. Agent 1 reads the case, Agent 2 checks live hospital inventory, Agent 3 assigns a doctor. Try "severe" or "cardiac" after Sironj PHC and City General fill up to see routing adapt.</p>
+  </div>
+</div>
+
+<div class="view" id="pipeline"><div id="pipeline-body"></div></div>
+<div class="view" id="doctor"><div id="doctor-body"></div></div>
+<div class="view" id="command"><div id="command-body"></div></div>
+
+</main>
+<script>
+const hospitals = [
+  {id:'h1', name:'Rampur District Hospital', district:'Rampur · Rural', icu:1, plt:8, hemat:true, cardio:false, docs:[{n:'Dr. Nair', load:2}]},
+  {id:'h2', name:'Sironj PHC', district:'Sironj · Rural', icu:0, plt:2, hemat:false, cardio:false, docs:[{n:'Dr. Verma', load:1}]},
+  {id:'h3', name:'City General', district:'State Capital · Metro', icu:4, plt:20, hemat:true, cardio:true, docs:[{n:'Dr. Rao', load:9},{n:'Dr. Iyer', load:7}]},
+  {id:'h4', name:'Lakhanpur CHC', district:'Lakhanpur · Rural', icu:2, plt:12, hemat:true, cardio:false, docs:[{n:'Dr. Singh', load:1}]}
+];
+const CASES = {
+  normal:{label:'Routine fever checkup', sev:'Green', icu:0, plt:0, spec:null},
+  moderate:{label:'Dengue — moderate', sev:'Yellow', icu:0, plt:2, spec:null},
+  severe:{label:'Dengue — severe (critical)', sev:'Red', icu:1, plt:5, spec:'hemat'},
+  cardiac:{label:'Acute cardiac event', sev:'Red', icu:1, plt:0, spec:'cardio'}
+};
+let patients = []; let pid = 1; let lastLog = null;
+
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
+function switchTab(tab){
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active', v.id===tab));
+  render();
+}
+
+function submitPatient(){
+  const name = document.getElementById('pname').value.trim() || ('Patient #'+pid);
+  const key = document.getElementById('ptype').value;
+  const c = CASES[key];
+  const need = {icu:c.icu, plt:c.plt, spec:c.spec};
+
+  // Agent 2: filter hospitals with sufficient physical resources
+  const eligible = hospitals.filter(h => h.icu>=need.icu && h.plt>=need.plt && (!need.spec || h[need.spec]));
+
+  let steps = [];
+  steps.push({title:'Agent 1 — Clinical Triage', text:`Diagnosis: "${c.label}". Severity scored ${c.sev}. Required resources: ${need.icu} ICU bed(s), ${need.plt} platelet unit(s)${need.spec? ', '+(need.spec==='hemat'?'a hematologist':'a cardiologist'):''}.`});
+
+  if(eligible.length===0){
+    steps.push({title:'Agent 2 — Resource Allocator', text:'No facility in the network currently holds the required beds/stock/specialist. Escalating to state command center for manual override.'});
+    steps.push({title:'Agent 3 — Routing & Load Balancing', text:'No assignment made. Patient held in escalation queue.'});
+    patients.unshift({id:pid++, name, label:c.label, sev:c.sev, hospital:'— Escalated —', doc:'—', status:'escalated'});
+  } else {
+    steps.push({title:'Agent 2 — Resource Allocator', text:`${eligible.length} of ${hospitals.length} facilities have the physical capacity: ${eligible.map(h=>h.name).join(', ')}.`});
+    // Agent 3: pick doctor with lowest load among eligible hospitals
+    let best=null;
+    eligible.forEach(h=>h.docs.forEach(d=>{ if(!best || d.load<best.doc.load) best={hospital:h, doc:d}; }));
+    best.hospital.icu -= need.icu; best.hospital.plt -= need.plt; best.doc.load += 1;
+    steps.push({title:'Agent 3 — Routing & Load Balancing', text:`Assigned to ${best.doc.n} at ${best.hospital.name} (lowest current caseload among eligible facilities). Resources reserved automatically.`});
+    patients.unshift({id:pid++, name, label:c.label, sev:c.sev, hospital:best.hospital.name, doc:best.doc.n, status: c.sev==='Green' ? 'pending' : 'auto-routed'});
+  }
+  lastLog = steps;
+  document.getElementById('pname').value='';
+  switchTab('pipeline');
+}
+
+function render(){
+  renderPipeline(); renderDoctor(); renderCommand();
+}
+function renderPipeline(){
+  const el = document.getElementById('pipeline-body');
+  if(!lastLog){ el.innerHTML='<div class="card empty">Submit a patient to see the three agents process it in real time.</div>'; return; }
+  el.innerHTML = '<div class="card">'+lastLog.map(s=>`<div class="agent-step"><h3>${s.title}</h3><p>${s.text}</p></div>`).join('')+'</div>';
+}
+function renderDoctor(){
+  const el = document.getElementById('doctor-body');
+  if(patients.length===0){ el.innerHTML='<div class="card empty">No patients routed yet.</div>'; return; }
+  const rows = patients.map(p=>{
+    const action = (p.sev==='Green' && p.status==='pending')
+      ? `<button class="ghost" onclick="approve(${p.id})">Approve & send SMS</button>`
+      : p.status==='approved' ? '<span class="psub">SMS sent — no visit needed</span>'
+      : p.status==='escalated' ? '<span class="psub">Awaiting manual override</span>'
+      : '<span class="psub">En route — resources reserved</span>';
+    return `<div class="patient-row"><div><div class="pname">${p.name} <span class="badge ${p.sev}">${p.sev}</span></div><div class="psub">${p.label} → ${p.doc} · ${p.hospital}</div></div>${action}</div>`;
+  }).join('');
+  el.innerHTML = `<div class="card"><label>All assigned doctors — combined queue</label>${rows}</div>`;
+}
+function approve(id){ const p=patients.find(x=>x.id===id); if(p) p.status='approved'; render(); }
+
+function renderCommand(){
+  const el = document.getElementById('command-body');
+  const rows = hospitals.map(h=>{
+    const icuCls = h.icu===0 ? 'stat-low' : h.icu<2 ? 'stat-mid' : '';
+    const pltCls = h.plt<3 ? 'stat-low' : h.plt<8 ? 'stat-mid' : '';
+    const load = h.docs.map(d=>`${d.n} (${d.load})`).join(', ');
+    return `<tr><td>${h.name}<div class="psub">${h.district}</div></td><td class="${icuCls}">${h.icu}</td><td class="${pltCls}">${h.plt}</td><td class="psub">${load}</td></tr>`;
+  }).join('');
+
+  // Agent 4: shortage detection + redistribution suggestion
+  const short = hospitals.filter(h=>h.icu===0 || h.plt<3);
+  const surplus = hospitals.filter(h=>h.plt>=12);
+  let alerts = '';
+  if(short.length===0){
+    alerts = '<div class="card empty">No shortage risks detected across the network.</div>';
+  } else {
+    alerts = short.map(h=>{
+      const donor = surplus.find(s=>s.id!==h.id);
+      const critical = h.icu===0;
+      return `<div class="alert ${critical?'crit':''}">
+        <p><strong>${h.name}</strong> — ${h.icu===0?'zero ICU beds free':''}${h.icu===0 && h.plt<3?' and ':''}${h.plt<3?'platelet stock critically low ('+h.plt+' units)':''}. Agent 4 forecast: at current draw rate this facility risks a hard stock-out within ~18–24 hrs.</p>
+        ${donor ? `<button class="ghost" onclick="redistribute('${donor.id}','${h.id}')">Recommend transfer: 5 units from ${donor.name}</button>` : '<span class="psub">No surplus facility currently available to donate.</span>'}
+      </div>`;
+    }).join('');
+  }
+  el.innerHTML = `<div class="card"><label>Live facility inventory</label><div class="overflow-x"><table><tr><th>Facility</th><th>ICU</th><th>Platelets</th><th>Doctor load</th></tr>${rows}</table></div></div>
+  <div class="card"><label>Agent 4 — Forecast & redistribution</label>${alerts}</div>`;
+}
+function redistribute(donorId, recvId){
+  const donor = hospitals.find(h=>h.id===donorId), recv = hospitals.find(h=>h.id===recvId);
+  const amt = Math.min(5, donor.plt);
+  donor.plt -= amt; recv.plt += amt;
+  render();
+}
+render();
+</script>
+</body>
+</html>
