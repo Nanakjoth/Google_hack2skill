@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agentic Tele-Triage Portal</title>
+<meta name="description" content="Multi-agent clinical triage, capacity routing and shortage forecasting for a rural public health network.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text y='19' font-size='19'>&#129658;</text></svg>">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+        </svg>
+      </div>
+      <div>
+        <h1>Tele-Triage</h1>
+        <p>Agent Network</p>
+      </div>
+    </div>
+
+    <nav class="nav" id="nav" aria-label="Sections">
+      <div class="nav-label">Workflow</div>
+      <button data-tab="intake" class="active" aria-current="page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 16v5a2 2 0 0 1-2 2h-3"/><path d="M3 16v5a2 2 0 0 0 2 2h3"/><path d="M12 8v6"/><path d="M9 11h6"/></svg>
+        <span>New Patient</span><kbd>1</kbd>
+      </button>
+      <button data-tab="pipeline">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/></svg>
+        <span>Agent Pipeline</span><span class="count" id="navRuns">0</span>
+      </button>
+      <button data-tab="doctor">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span>Queues</span><span class="count" id="navPts">0</span>
+      </button>
+      <button data-tab="command">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 15 4-5 3 3 5-7"/></svg>
+        <span>Command Center</span>
+      </button>
+    </nav>
+
+    <div class="sb-foot">
+      <button class="theme-btn" id="themeBtn" title="Toggle light / dark theme">
+        <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <span id="themeLabel">Light mode</span>
+      </button>
+      <p class="hint"><kbd>1</kbd>–<kbd>4</kbd> switch views · <kbd>Ctrl</kbd>+<kbd>↵</kbd> run triage · <kbd>/</kbd> search queue</p>
+    </div>
+  </aside>
+
+  <!-- ================= MAIN ================= -->
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <h2 id="pageTitle">New Patient</h2>
+        <p class="sub" id="pageSub">Paste a lab report for model triage, or pick a case profile.</p>
+      </div>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-tools">
+        <span class="pill" id="pillLlm" title="LLM triage path availability"><span class="dot"></span>Model: checking…</span>
+        <span class="pill" id="pillApi" title="Backend connectivity"><span class="dot"></span>API: checking…</span>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- ---------- INTAKE ---------- -->
+      <section class="view active" id="intake" aria-label="New patient">
+        <div class="intake-grid">
+          <div class="card">
+            <div class="card-head tight">
+              <h3>Patient intake</h3>
+              <span class="spacer"></span>
+              <div class="seg" id="modeSeg" role="tablist" aria-label="Triage mode">
+                <button data-mode="report" class="active" role="tab" aria-selected="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                  Lab report
+                </button>
+                <button data-mode="case" role="tab" aria-selected="false">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 3-3 2 2 4-4"/></svg>
+                  Case profile
+                </button>
+              </div>
+            </div>
+
+            <div class="field" style="margin-top:17px">
+              <label for="pname">Patient name</label>
+              <input type="text" id="pname" placeholder="e.g. Ravi Kumar" autocomplete="off" spellcheck="false">
+            </div>
+
+            <!-- report mode -->
+            <div id="modeReport">
+              <div class="field">
+                <label for="preport">Raw lab report</label>
+                <textarea id="preport" spellcheck="false" placeholder="Paste the report exactly as it arrives — OCR errors, odd units, truncated lines and all. The model reads it; agents 2–4 verify the result against live inventory."></textarea>
+                <div class="hint-row">
+                  <span id="hintMode"><b>Blank</b> — falls back to the "Routine fever" profile</span>
+                  <span>·</span><span id="hintChars">0 chars</span>
+                </div>
+              </div>
+              <div class="field-row" style="margin-bottom:6px">
+                <button class="ghost sm" id="sampleBtn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3"/></svg>
+                  Sample: severe dengue
+                </button>
+                <button class="ghost sm" id="sampleOcrBtn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7"/><path d="M2 12h20"/></svg>
+                  Sample: OCR-degraded
+                </button>
+                <button class="ghost sm" id="clearBtn">Clear</button>
+              </div>
+            </div>
+
+            <!-- case mode -->
+            <div id="modeCase" hidden>
+              <div class="field">
+                <label>Built-in case profile</label>
+                <div class="case-grid" id="caseGrid"></div>
+              </div>
+            </div>
+
+            <div class="run-bar">
+              <button class="primary" id="runBtn">
+                <svg id="runIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                <span id="runLabel">Run Triage</span>
+              </button>
+              <span class="spacer"></span>
+              <span class="psub"><kbd class="key">Ctrl</kbd> + <kbd class="key">↵</kbd></span>
+            </div>
+          </div>
+
+          <div>
+            <div class="card">
+              <div class="card-head tight"><h3>How the routing works</h3></div>
+              <ol class="info-list" style="margin-top:15px">
+                <li><span class="num">1</span><span><b>Clinical Triage</b> reads the report and returns a schema-constrained severity plus a <i>recommendation</i>. This is the only agent allowed to call a model.</span></li>
+                <li><span class="num">2</span><span><b>Resource Allocator</b> filters facilities that physically have the beds, stock and a <i>free doctor</i> in the right specialty. Pure arithmetic.</span></li>
+                <li><span class="num">3</span><span><b>Routing</b> sends the case to the nearest facility that still has headroom, and picks the least-loaded eligible doctor there.</span></li>
+                <li><span class="num">4</span><span><b>Doctor decision.</b> A report alone never holds a bed. An ICU bed and medicines are committed only when a doctor chooses <b>Patient must be seen</b>.</span></li>
+                <li><span class="num">5</span><span><b>Forecast</b> projects 30-day demand and proposes transfers that never drain a donor below its buffer.</span></li>
+              </ol>
+            </div>
+            <div class="card">
+              <div class="card-head tight"><h3>Try this</h3></div>
+              <ul class="info-list" style="margin-top:15px">
+                <li><span class="num">→</span><span>Submit a <b>severe dengue</b> case, then open <b>Queues</b> and choose <b>Remote review</b>. ICU count does not move — a report never costs a bed.</span></li>
+                <li><span class="num">→</span><span>Submit the same case again and choose <b>Patient must be seen</b>. Now the ICU bed is held, on a human decision.</span></li>
+                <li><span class="num">→</span><span>Choose <b>Escalate to senior</b> and watch the case move into a senior specialty queue, recording which doctor handed it up.</span></li>
+                <li><span class="num">→</span><span>Use the <b>OCR-degraded</b> sample to see whether the model still reads it. Then remove <code>GROQ_API_KEY</code> to watch the conservative fallback path.</span></li>
+                <li><span class="num">→</span><span>Open <b>Command Center</b> and move stock between facilities. The donor floor is enforced, so some transfers correctly refuse.</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- PIPELINE ---------- -->
+      <section class="view" id="pipeline" aria-label="Agent pipeline">
+        <div class="card-head" style="margin-bottom:14px">
+          <h3 style="margin:0;font-size:.93rem">Pipeline runs</h3>
+          <span class="psub" id="runCount">No runs yet this session</span>
+          <span class="spacer"></span>
+          <button class="ghost sm" id="clearRunsBtn">Clear history</button>
+        </div>
+        <div id="pipeline-body"></div>
+        <div class="card" id="trace-card" style="margin-top:20px">
+          <div class="card-head tight">
+            <h3>Model call trace</h3>
+            <span class="psub" id="traceSub" style="flex-basis:auto;margin:0"></span>
+          </div>
+          <div id="trace-body"></div>
+        </div>
+      </section>
+
+      <!-- ---------- DOCTOR ---------- -->
+      <section class="view" id="doctor" aria-label="Queues">
+        <div class="toolbar">
+          <div class="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+            <input type="text" id="qSearch" placeholder="Search patient, doctor, facility or specialty…" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="filters" id="statusFilters"></div>
+          <span class="spacer" style="flex:1"></span>
+          <span class="psub" id="queueCount"></span>
+        </div>
+        <div id="doctor-body"></div>
+      </section>
+
+      <!-- ---------- COMMAND ---------- -->
+      <section class="view" id="command" aria-label="Command center">
+        <div class="toolbar">
+          <div class="seg" id="refreshSeg" role="group" aria-label="Auto refresh">
+            <button data-auto="15" class="active">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+              Auto 15s
+            </button>
+            <button data-auto="off">Paused</button>
+          </div>
+          <span class="refresh-note">
+            <svg class="ring" viewBox="0 0 20 20" aria-hidden="true">
+              <circle class="bgc" cx="10" cy="10" r="8"></circle>
+              <circle class="fgc" id="ringFg" cx="10" cy="10" r="8" stroke-dasharray="50.3" stroke-dashoffset="50.3"></circle>
+            </svg>
+            <span id="refreshNote">up to date</span>
+          </span>
+          <span class="spacer" style="flex:1"></span>
+          <button class="ghost sm" id="refreshBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+            Refresh now
+          </button>
+        </div>
+        <div id="command-body"></div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+<div id="modal-root"></div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

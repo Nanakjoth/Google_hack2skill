@@ -1,0 +1,704 @@
+[
+  {
+    "id": "r001",
+    "template": "routine_fever",
+    "expected_severity": "Green",
+    "expected_specialist": "none",
+    "note": "normal platelets, stable vitals",
+    "noise": "clean",
+    "report_text": "Name: Sunita Devi   Age: 34 yrs   Sex: M\n    Presenting complaint: Fever 3 days, body ache, no rash.\n    Temp 100.2 F, PR 88/min, BP 120/80 mmHg, SpO2 98% on room air.\n    WBC 9,800/cumm, Hb 14.2 g/dL, Platelets 2.4 lakh/uL\n    RFT: Urea 22 mg/dL, Creatinine 0.9 mg/dL\n    Dengue NS1 antigen: Negative\n    MAL parasite: Negative\n    Physician note: Stable vitals. Likely viral fever. Oral fluids and\n    paracetamol advised. No admission required."
+  },
+  {
+    "id": "r001n",
+    "template": "routine_fever",
+    "expected_severity": "Green",
+    "expected_specialist": "none",
+    "note": "normal platelets, stable vitals",
+    "noise": "ocr",
+    "report_text": "Name: Sunita Devi   Age: 34 yrs   Sex: M\n    Presenting complaint: Fever 3 days, body ache, no rash.\n    Temp 100.2 F, PR 88/min, BP 120/80 mmHg, SpO2 98% on room air.\n    WBC 9,800/cumm, Hb 14.2 g/dL, Platelets 2.4 lakh/uL\nRFT: Urea 02 mg/dL, Creatinine 2.9 mg/dL\n    Dengue NS1 antigen: Negative\n    MAL parasite: Negative\n    Physician note: Stable vitals. Likely viral fever. Oral fluids and\n    paracetamol advised. No admission required."
+  },
+  {
+    "id": "r002",
+    "template": "routine_fever",
+    "expected_severity": "Green",
+    "expected_specialist": "none",
+    "note": "normal platelets, stable vitals",
+    "noise": "clean",
+    "report_text": "Name: Priya Menon   Age: 34 yrs   Sex: M\n    Presenting complaint: Fever 3 days, body ache, no rash.\n    Temp 100.2 F, PR 88/min, BP 120/80 mmHg, SpO2 98% on room air.\n    WBC 9,800/cumm, Hb 14.2 g/dL, Platelets 2.4 lakh/uL\n    RFT: Urea 22 mg/dL, Creatinine 0.9 mg/dL\n    Dengue NS1 antigen: Negative\n    MAL parasite: Negative\n    Physician note: Stable vitals. Likely viral fever. Oral fluids and\n    paracetamol advised. No admission required."
+  },
+  {
+    "id": "r002n",
+    "template": "routine_fever",
+    "expected_severity": "Green",
+    "expected_specialist": "none",
+    "note": "normal platelets, stable vitals",
+    "noise": "ocr",
+    "report_text": "Name: Priya Menon   Age: 43 yrs   Sex: M\n    Presenting complaint: Fever 3 days, body ache, no rash.\n    Temp 190.2 F, PR 88/min, BP 120/80 mmHg, Sp02 08% on room air.\n    WBC 4,800/cumm, Hb 14.2 g/dL, Platelets 2.9 lakh/uL\n    RFT: Urea 22 mg/dL, Creatinine 0.9 mg/dL\nDengue NS1 antigen: Negative\n    MAL parasite: Negative\n    Physician note: Stable vitals. Likely viral fever. Oral fluids and\n    paracetamol advised. No admission required."
+  },
+  {
+    "id": "r003",
+    "template": "viral_pharyngitis",
+    "expected_severity": "Green",
+    "expected_specialist": "none",
+    "note": "no abnormal values",
+    "noise": "clean",
+    "report_text": "Meena Kumari, 27/F. Sore throat, mild fever 99.5 F since 2 days.\n    BP 118/76, HR 82, RR 18, SpO2 99%.\n    CBC: Hb 13.1, TLC 7,200, Platelets 3.1 lakh\n    No investigations otherwise indicated.\n    Advised: paracetamol 500mg SOS, warm gargles, review if not improving."
+  },
+  {
+    "id": "r003n",
+    "template": "viral_pharyngitis",
+    "expected_severity": "Green",
+    "expected_specialist": "none",
+    "note": "no abnormal values",
+    "noise": "ocr",
+    "report_text": "Meena Kumari, 27/F. Sore throat, mild fever 99.5 F since 2 days.\n    BP 118/76, HR 82, RR 18, SpO2 99%.\n    CBC: Hb 13.1, TLC 7,200, Platelets 3.1 lakh\n    No investigations otherwise indicated.\n    Advised: paracetamol 500mg SOS, warm gargles, review if not improving."
+  },
+  {
+    "id": "r004",
+    "template": "viral_pharyngitis",
+    "expected_severity": "Green",
+    "expected_specialist": "none",
+    "note": "no abnormal values",
+    "noise": "clean",
+    "report_text": "Suresh Babu, 27/F. Sore throat, mild fever 99.5 F since 2 days.\n    BP 118/76, HR 82, RR 18, SpO2 99%.\n    CBC: Hb 13.1, TLC 7,200, Platelets 3.1 lakh\n    No investigations otherwise indicated.\n    Advised: paracetamol 500mg SOS, warm gargles, review if not improving."
+  },
+  {
+    "id": "r004n",
+    "template": "viral_pharyngitis",
+    "expected_severity": "Green",
+    "expected_specialist": "none",
+    "note": "no abnormal values",
+    "noise": "ocr",
+    "report_text": "Suresh Babu, 27/F. Sore throat, mild fever 99.5 F since 2 days.\n    BP 118/76, HR 82, RR 18, SpO2 99%.\n    CBC: Hb 13.1, TLC 7,200, Platelets 3.1 lakh\n    No investigations otherwise indicated.\n    Advised: paracetamol 500mg SOS, warm gargles, review if not improving."
+  },
+  {
+    "id": "r005",
+    "template": "mild_anemia",
+    "expected_severity": "Green",
+    "expected_specialist": "none",
+    "note": "Hb >11 g/dL = mild anaemia, outpatient",
+    "noise": "clean",
+    "report_text": "Name Vikram Singh, 41 yrs F. Complaining of mild weakness and hair loss.\n    P/S: afebrile, stable, BMI normal.\n    Hb 11.8 g/dL, TLC 6,900, Platelets 2.8 lakh\n    Serum ferritin 18 ng/mL (low)\n    Stool for occult blood: Negative\n    Advice: oral iron, review in 2 weeks as outpatient."
+  },
+  {
+    "id": "r005n",
+    "template": "mild_anemia",
+    "expected_severity": "Green",
+    "expected_specialist": "none",
+    "note": "Hb >11 g/dL = mild anaemia, outpatient",
+    "noise": "ocr",
+    "report_text": "Name Vikram Singh, 41 yrs F. Complaining of mild weakness and hair loss.\n    P/S: afebrile, stable, BMI normal.\n    Hb 01.8 g/dL, TLC 6,901, Platelets 2.8 lakh\n    Serum ferritin 18 ng/mL (low)\nStool for occult blood: Negative\nAdvice: oral iron, review in 2 weeks as outpatient."
+  },
+  {
+    "id": "r006",
+    "template": "mild_anemia",
+    "expected_severity": "Green",
+    "expected_specialist": "none",
+    "note": "Hb >11 g/dL = mild anaemia, outpatient",
+    "noise": "clean",
+    "report_text": "Name Kavita Rao, 41 yrs F. Complaining of mild weakness and hair loss.\n    P/S: afebrile, stable, BMI normal.\n    Hb 11.8 g/dL, TLC 6,900, Platelets 2.8 lakh\n    Serum ferritin 18 ng/mL (low)\n    Stool for occult blood: Negative\n    Advice: oral iron, review in 2 weeks as outpatient."
+  },
+  {
+    "id": "r006n",
+    "template": "mild_anemia",
+    "expected_severity": "Green",
+    "expected_specialist": "none",
+    "note": "Hb >11 g/dL = mild anaemia, outpatient",
+    "noise": "ocr",
+    "report_text": "Name Kavita Rao, 41 yrs F. Complaining of mild weakness and hair loss.\n    P/S: afebrile, stable, BMI normal.\n    Hb 11.8 g/dL, TLC 6,900, Platelets 2.8 lakh\n    Serum ferritin 81 ng/mL (low)\n    Stool for occult blood: Negative\n    Advice: oral iron, review in 2 weeks as outpatient."
+  },
+  {
+    "id": "r007",
+    "template": "stable_postop_check",
+    "expected_severity": "Green",
+    "expected_specialist": "none",
+    "note": "routine post-op, no red flags",
+    "noise": "clean",
+    "report_text": "Fatima Sheikh, 52/M. Post-op day 2 after elective inguinal hernia repair.\n    Afebrile, wound clean and dry, no discharge.\n    PR 80, BP 130/85, SpO2 98%, chest clear.\n    Hb 13.6, TLC 10,200, Platelets 2.5 lakh, Urea 26, Creat 1.0\n    Discharged with oral paracetamol and a follow-up date."
+  },
+  {
+    "id": "r007n",
+    "template": "stable_postop_check",
+    "expected_severity": "Green",
+    "expected_specialist": "none",
+    "note": "routine post-op, no red flags",
+    "noise": "ocr",
+    "report_text": "Fatima Sheikh, 52/M. Post-op day 2 after elective inguinal hernia repair.\n    Afebrile, wound clean and dry, no discharge.\n    PR 80, BP 930/85, SpO2 18%, chest clear.\n    Hb 13.6, TLC 10,200, Platelets 2.5 lakh, Urea 62, Creat 1.0\n    Discharged with oral paracetamol and a follow-up date."
+  },
+  {
+    "id": "r008",
+    "template": "stable_postop_check",
+    "expected_severity": "Green",
+    "expected_specialist": "none",
+    "note": "routine post-op, no red flags",
+    "noise": "clean",
+    "report_text": "Rajesh Yadav, 52/M. Post-op day 2 after elective inguinal hernia repair.\n    Afebrile, wound clean and dry, no discharge.\n    PR 80, BP 130/85, SpO2 98%, chest clear.\n    Hb 13.6, TLC 10,200, Platelets 2.5 lakh, Urea 26, Creat 1.0\n    Discharged with oral paracetamol and a follow-up date."
+  },
+  {
+    "id": "r008n",
+    "template": "stable_postop_check",
+    "expected_severity": "Green",
+    "expected_specialist": "none",
+    "note": "routine post-op, no red flags",
+    "noise": "ocr",
+    "report_text": "Rajesh Yadav, 52/M. Post-op day 2 after elective inguinal hernia repair.\n    Afebrile, wound clean and dry, no discharge.\n    PR 80, BP 130/85, Sp02 98%, chest clear.\n    Hb 13.6, TLC 10,200, Platelets 2.5 lakh, Urea 26, Creat 1.0\n    Discharged with oral paracetamol and a follow-up date."
+  },
+  {
+    "id": "r009",
+    "template": "moderate_dengue",
+    "expected_severity": "Yellow",
+    "expected_specialist": "hematologist",
+    "note": "platelets 42k = moderate, no shock",
+    "noise": "clean",
+    "report_text": "Name: Zoya Khan, 29 yrs M, Rampur.\n    C/O: Fever 5 days, severe body pain, mild abdominal discomfort.\n    Temp 101.4 F, PR 104/min, BP 108/72, SpO2 97%.\n    Platelets 42,000/uL\n    WBC 6,100, Hb 13.0, Haematocrit 44%\n    Dengue NS1: POSITIVE\n    LFT: AST 68, ALT 74 U/L (mildly elevated)\n    No bleeding, no plasma leak. Not in shock.\n    Plan: admit for observation, oral rehydration, paracetamol."
+  },
+  {
+    "id": "r010",
+    "template": "moderate_dengue",
+    "expected_severity": "Yellow",
+    "expected_specialist": "hematologist",
+    "note": "platelets 42k = moderate, no shock",
+    "noise": "clean",
+    "report_text": "Name: Ravi Kumar, 29 yrs M, Rampur.\n    C/O: Fever 5 days, severe body pain, mild abdominal discomfort.\n    Temp 101.4 F, PR 104/min, BP 108/72, SpO2 97%.\n    Platelets 42,000/uL\n    WBC 6,100, Hb 13.0, Haematocrit 44%\n    Dengue NS1: POSITIVE\n    LFT: AST 68, ALT 74 U/L (mildly elevated)\n    No bleeding, no plasma leak. Not in shock.\n    Plan: admit for observation, oral rehydration, paracetamol."
+  },
+  {
+    "id": "r011",
+    "template": "pneumonia",
+    "expected_severity": "Yellow",
+    "expected_specialist": "none",
+    "note": "hypoxaemia + consolidation, stable",
+    "noise": "clean",
+    "report_text": "Ravi Kumar, 61/M. Productive cough with yellow sputum, fever 5 days,\n    chest pain on breathing.\n    Temp 102 F, RR 26/min, HR 104, BP 126/80, SpO2 93% on room air.\n    Chest X-ray: patchy consolidation in right lower zone.\n    CBC: Hb 12.4, TLC 15,800, Platelets 2.2 lakh\n    CRP 96 mg/L. Blood culture sent.\n    Plan: IV ceftriaxone, admit to ward, oxygen as needed."
+  },
+  {
+    "id": "r012",
+    "template": "pneumonia",
+    "expected_severity": "Yellow",
+    "expected_specialist": "none",
+    "note": "hypoxaemia + consolidation, stable",
+    "noise": "clean",
+    "report_text": "Sunita Devi, 61/M. Productive cough with yellow sputum, fever 5 days,\n    chest pain on breathing.\n    Temp 102 F, RR 26/min, HR 104, BP 126/80, SpO2 93% on room air.\n    Chest X-ray: patchy consolidation in right lower zone.\n    CBC: Hb 12.4, TLC 15,800, Platelets 2.2 lakh\n    CRP 96 mg/L. Blood culture sent.\n    Plan: IV ceftriaxone, admit to ward, oxygen as needed."
+  },
+  {
+    "id": "r013",
+    "template": "dehydration_gastroenteritis",
+    "expected_severity": "Yellow",
+    "expected_specialist": "none",
+    "note": "moderate dehydration, perfusion borderline",
+    "noise": "clean",
+    "report_text": "Rekha Patil, 24/M. Loose motions 6 times, vomiting 3 times, poor intake.\n    Sunken eyes, dry tongue, skin pinch slow.\n    Temp 99.8 F, HR 112/min, BP 96/62, SpO2 98%.\n    Na 132, K 3.1, Serum creatinine 1.2 mg/dL, Urea 38\n    CBC: Hb 15.1, TLC 12,600, Platelets 3.4 lakh\n    Plan: ORS, IV ringer lactate if unable to tolerate oral."
+  },
+  {
+    "id": "r014",
+    "template": "dehydration_gastroenteritis",
+    "expected_severity": "Yellow",
+    "expected_specialist": "none",
+    "note": "moderate dehydration, perfusion borderline",
+    "noise": "clean",
+    "report_text": "Rajesh Yadav, 24/M. Loose motions 6 times, vomiting 3 times, poor intake.\n    Sunken eyes, dry tongue, skin pinch slow.\n    Temp 99.8 F, HR 112/min, BP 96/62, SpO2 98%.\n    Na 132, K 3.1, Serum creatinine 1.2 mg/dL, Urea 38\n    CBC: Hb 15.1, TLC 12,600, Platelets 3.4 lakh\n    Plan: ORS, IV ringer lactate if unable to tolerate oral."
+  },
+  {
+    "id": "r015",
+    "template": "moderate_anemia",
+    "expected_severity": "Yellow",
+    "expected_specialist": "none",
+    "note": "Hb 8.6 g/dL = moderate anaemia, symptomatic",
+    "noise": "clean",
+    "report_text": "Sita Devi, 38/F. Puerperal woman, 3 weeks post-delivery. Complaining of\n    weakness, giddiness on standing.\n    P/S: pale, tachycardic HR 108, BP 104/68, SpO2 97%, no jaundice.\n    Hb 8.6 g/dL, TLC 8,900, Platelets 2.6 lakh\n    MCV 68 fL, Serum ferritin 9 ng/mL\n    Plan: admit, parenteral iron, investigate for bleeding source."
+  },
+  {
+    "id": "r016",
+    "template": "moderate_anemia",
+    "expected_severity": "Yellow",
+    "expected_specialist": "none",
+    "note": "Hb 8.6 g/dL = moderate anaemia, symptomatic",
+    "noise": "clean",
+    "report_text": "Deepak Sharma, 38/F. Puerperal woman, 3 weeks post-delivery. Complaining of\n    weakness, giddiness on standing.\n    P/S: pale, tachycardic HR 108, BP 104/68, SpO2 97%, no jaundice.\n    Hb 8.6 g/dL, TLC 8,900, Platelets 2.6 lakh\n    MCV 68 fL, Serum ferritin 9 ng/mL\n    Plan: admit, parenteral iron, investigate for bleeding source."
+  },
+  {
+    "id": "r017",
+    "template": "severe_dengue",
+    "expected_severity": "Red",
+    "expected_specialist": "hematologist",
+    "note": "platelets 9.8k + haemoconcentration + shock = Red",
+    "noise": "clean",
+    "report_text": "Name: Zoya Khan, 26 yrs M.\n    C/O: Fever 7 days, vomiting, severe abdominal pain, bleeding from gums.\n    Temp 101 F, HR 124/min, BP 88/58 mmHg, pulse pressure narrow (30),\n    SpO2 95%. Cold clammy extremities, cap refill 4 sec.\n    Platelets 9,800/uL\n    Haematocrit 52% (rose from 41% on day 3)\n    WBC 3,200, Hb 14.8\n    Dengue NS1: POSITIVE\n    Tourniquet test: strongly positive, petechiae on both legs\n    FAST scan: free fluid in abdomen\n    Impression: Dengue haemorrhagic fever with shock. Plasma leak.\n    Plan: admit to ICU, IV ringer lactate, blood products, platelets."
+  },
+  {
+    "id": "r017n",
+    "template": "severe_dengue",
+    "expected_severity": "Red",
+    "expected_specialist": "hematologist",
+    "note": "platelets 9.8k + haemoconcentration + shock = Red",
+    "noise": "ocr",
+    "report_text": "Name: Zoya Khan, 26 yrs M.\n    C/O: Fever 7 days, vomiting, severe abdominal pain, bleeding from gums.\n    Temp 101 F, HR 184/min, BP 88/52 mmHg, pulse pressure narrow (30),\n    SpO2 95%. Cold clammy extremities, cap refill 4 sec.\n    Platelets 9,800/uL\nHaematocrit 52% (rose from 41% on day 3)\n    WBC 3,280, Hb 14.0\n    Dengue NS1: POSITIVE\n    Tourniquet test: strongly positive, petechiae on both legs\n    FAST scan: free fluid in abdomen\n    Impression: Dengue haemorrhagic fever with shock. Plasma leak.\n    Plan: admit to ICU, IV ringer lactate, blood products, platelets."
+  },
+  {
+    "id": "r018",
+    "template": "severe_dengue",
+    "expected_severity": "Red",
+    "expected_specialist": "hematologist",
+    "note": "platelets 9.8k + haemoconcentration + shock = Red",
+    "noise": "clean",
+    "report_text": "Name: Arun Pillai, 26 yrs M.\n    C/O: Fever 7 days, vomiting, severe abdominal pain, bleeding from gums.\n    Temp 101 F, HR 124/min, BP 88/58 mmHg, pulse pressure narrow (30),\n    SpO2 95%. Cold clammy extremities, cap refill 4 sec.\n    Platelets 9,800/uL\n    Haematocrit 52% (rose from 41% on day 3)\n    WBC 3,200, Hb 14.8\n    Dengue NS1: POSITIVE\n    Tourniquet test: strongly positive, petechiae on both legs\n    FAST scan: free fluid in abdomen\n    Impression: Dengue haemorrhagic fever with shock. Plasma leak.\n    Plan: admit to ICU, IV ringer lactate, blood products, platelets."
+  },
+  {
+    "id": "r018n",
+    "template": "severe_dengue",
+    "expected_severity": "Red",
+    "expected_specialist": "hematologist",
+    "note": "platelets 9.8k + haemoconcentration + shock = Red",
+    "noise": "ocr",
+    "report_text": "Name: Arun Pillai, 26 yrs M.\nC/O: Fever 7 days, vomiting, severe abdominal pain, bleeding from gums.\n    Temp 101 F, HR 124/min, BP 88/58 mmHg, pulse pressure narrow (30),\n    SpO2 95%. Cold clammy extremities, cap refill 4 sec.\n    Platelets 9,800/uL\n    Haematocrit 52% (rose from 41% on day 3)\n    WBC 3,200, Hb 14.8\n    Dengue NS1: POSITIVE\n    Tourniquet test: strongly positive, petechiae on both legs\n    FAST scan: free fluid in abdomen\n    Impression: Dengue haemorrhagic fever with shock. Plasma leak.\n    Plan: admit to ICU, IV ringer lactate, blood products, platelets."
+  },
+  {
+    "id": "r019",
+    "template": "acute_coronary_syndrome",
+    "expected_severity": "Red",
+    "expected_specialist": "cardiologist",
+    "note": "STEMI = Red",
+    "noise": "clean",
+    "report_text": "Zoya Khan, 58/M. Severe crushing chest pain radiating to left arm,\n    onset 1 hour ago, associated diaphoresis.\n    BP 96/58, HR 104, RR 22, SpO2 94%.\n    ECG: ST elevation in V1-V4, reciprocal changes inferior.\n    Troponin I 6.8 ng/mL, CK-MB elevated\n    Hb 13.9, Platelets 2.6 lakh, Creatinine 1.1\n    Plan: immediate thrombolysis with streptokinase, aspirin 150mg,\n    admit to CCU, monitored bed."
+  },
+  {
+    "id": "r019n",
+    "template": "acute_coronary_syndrome",
+    "expected_severity": "Red",
+    "expected_specialist": "cardiologist",
+    "note": "STEMI = Red",
+    "noise": "ocr",
+    "report_text": "Zoya Khan, 85/M. Severe crushing chest pain radiating to left arm,\n    onset 1 hour ago, associated diaphoresis.\n    BP 96/58, HR 104, RR 22, SpO2 94%.\n    ECG: ST elevation in V1-V4, reciprocal changes inferior.\n    Troponin I 6.8 ng/mL, CK-MB elevated\n    Hb 13.9, Platelets 2.6 lakh, Creatinine 1.1\n    Plan: immediate thrombolysis with streptokinase, aspirin 150mg,\n    admit to CCU, monitored bed."
+  },
+  {
+    "id": "r020",
+    "template": "acute_coronary_syndrome",
+    "expected_severity": "Red",
+    "expected_specialist": "cardiologist",
+    "note": "STEMI = Red",
+    "noise": "clean",
+    "report_text": "Sita Devi, 58/M. Severe crushing chest pain radiating to left arm,\n    onset 1 hour ago, associated diaphoresis.\n    BP 96/58, HR 104, RR 22, SpO2 94%.\n    ECG: ST elevation in V1-V4, reciprocal changes inferior.\n    Troponin I 6.8 ng/mL, CK-MB elevated\n    Hb 13.9, Platelets 2.6 lakh, Creatinine 1.1\n    Plan: immediate thrombolysis with streptokinase, aspirin 150mg,\n    admit to CCU, monitored bed."
+  },
+  {
+    "id": "r020n",
+    "template": "acute_coronary_syndrome",
+    "expected_severity": "Red",
+    "expected_specialist": "cardiologist",
+    "note": "STEMI = Red",
+    "noise": "ocr",
+    "report_text": "Sita Devi, 58/M. Severe crushing chest pain radiating to left arm,\n    onset 1 hour ago, associated diaphoresis.\n    BP 96/48, HR 105, RR 22, SpO2 94%.\n    ECG: ST elevation in V1-V4, reciprocal changes inferior.\n    Troponin I 6.8 ng/mL, CK-MB elevated\n    Hb 63.9, Platelets 2.1 lakh, Creatinine 1.1\n    Plan: immediate thrombolysis with streptokinase, aspirin 150mg,\n    admit to CCU, monitored bed."
+  },
+  {
+    "id": "r021",
+    "template": "severe_anemia",
+    "expected_severity": "Red",
+    "expected_specialist": "hematologist",
+    "note": "Hb 6.2 g/dL + heart failure = Red",
+    "noise": "clean",
+    "report_text": "Name Rekha Patil, 22 yrs F, known heavy menstrual bleeding.\n    Complains of severe weakness, breathlessness at rest, palpitations.\n    P/S: very pale, HR 128/min, BP 82/54, SpO2 92%, flow-sheet murmur.\n    Hb 6.2 g/dL\n    TLC 11,200, Platelets 3.6 lakh, MCV 59 fL\n    Reticulocytes 0.8%\n    Plan: admit, cross-match 2 units, transfuse, ICU bed."
+  },
+  {
+    "id": "r021n",
+    "template": "severe_anemia",
+    "expected_severity": "Red",
+    "expected_specialist": "hematologist",
+    "note": "Hb 6.2 g/dL + heart failure = Red",
+    "noise": "ocr",
+    "report_text": "Name Rekha Patil, 22 yrs F, known heavy menstrual bleeding.\n    Complains of severe weakness, breathlessness at rest, palpitations.\n    P/S: very pale, HR 128/min, BP 82/54, SpO2 92%, flow-sheet murmur.\n    Hb 6.2 g/dL\n    TLC 11,200, Platelets 3.6 lakh, MCV 59 fL\n    Reticulocytes 0.8%\n    Plan: admit, cross-match 2 units, transfuse, ICU bed."
+  },
+  {
+    "id": "r022",
+    "template": "severe_anemia",
+    "expected_severity": "Red",
+    "expected_specialist": "hematologist",
+    "note": "Hb 6.2 g/dL + heart failure = Red",
+    "noise": "clean",
+    "report_text": "Name Ravi Kumar, 22 yrs F, known heavy menstrual bleeding.\n    Complains of severe weakness, breathlessness at rest, palpitations.\n    P/S: very pale, HR 128/min, BP 82/54, SpO2 92%, flow-sheet murmur.\n    Hb 6.2 g/dL\n    TLC 11,200, Platelets 3.6 lakh, MCV 59 fL\n    Reticulocytes 0.8%\n    Plan: admit, cross-match 2 units, transfuse, ICU bed."
+  },
+  {
+    "id": "r022n",
+    "template": "severe_anemia",
+    "expected_severity": "Red",
+    "expected_specialist": "hematologist",
+    "note": "Hb 6.2 g/dL + heart failure = Red",
+    "noise": "ocr",
+    "report_text": "Name Ravi Kumar, 22 yrs F, known heavy menstrual bleeding.\n    Complains of severe weakness, breathlessness at rest, palpitations.\nP/S: very pale, HR 128/min, BP 82/54, SpO2 29%, flow-sheet murmur.\n    Hb 2.6 g/dL\n    TLC 12,100, Platelets 3.6 lakh, MCV 59 fL\nReticulocytes 0.8%\n    Plan: admit, cross-match 2 units, transfuse, ICU bed."
+  },
+  {
+    "id": "r023",
+    "template": "stroke",
+    "expected_severity": "Red",
+    "expected_specialist": "none",
+    "note": "GCS 9 = Red",
+    "noise": "clean",
+    "report_text": "Vikram Singh, 70/M, known hypertensive.\n    Found unconscious at home 2 hours back by family.\n    GCS 9/15 (E2 V2 M5), right-sided hemiparesis, slurred speech.\n    BP 186/102, HR 88, SpO2 96%.\n    CT brain: no haemorrhage, left MCA territory infarct.\n    Platelets 2.4 lakh, Hb 13.2, RBS 148, Creat 1.0\n    Plan: admit to ICU for thrombolysis window monitoring, aspirin,\n    stroke unit referral."
+  },
+  {
+    "id": "r023n",
+    "template": "stroke",
+    "expected_severity": "Red",
+    "expected_specialist": "none",
+    "note": "GCS 9 = Red",
+    "noise": "ocr",
+    "report_text": "Vikram Singh, 70/M, known hypertensive.\n    Found unconscious at home 2 hours back by family.\n    GCS 9/15 (E2 V2 M5), right-sided hemiparesis, slurred speech.\n    BP 186/102, HR 88, SpO2 96%.\n    CT brain: no haemorrhage, left MCA territory infarct.\n    Platelets 2.4 lakh, Hb 13.2, RBS 148, Creat 1.0\n    Plan: admit to ICU for thrombolysis window monitoring, aspirin,\n    stroke unit referral."
+  },
+  {
+    "id": "r024",
+    "template": "stroke",
+    "expected_severity": "Red",
+    "expected_specialist": "none",
+    "note": "GCS 9 = Red",
+    "noise": "clean",
+    "report_text": "Fatima Sheikh, 70/M, known hypertensive.\n    Found unconscious at home 2 hours back by family.\n    GCS 9/15 (E2 V2 M5), right-sided hemiparesis, slurred speech.\n    BP 186/102, HR 88, SpO2 96%.\n    CT brain: no haemorrhage, left MCA territory infarct.\n    Platelets 2.4 lakh, Hb 13.2, RBS 148, Creat 1.0\n    Plan: admit to ICU for thrombolysis window monitoring, aspirin,\n    stroke unit referral."
+  },
+  {
+    "id": "r024n",
+    "template": "stroke",
+    "expected_severity": "Red",
+    "expected_specialist": "none",
+    "note": "GCS 9 = Red",
+    "noise": "ocr",
+    "report_text": "Fatima Sheikh, 70/M, known hypertensive.\n    Found unconscious at home 2 hours back by family.\n    GCS 9/15 (E2 V2 M5), right-sided hemiparesis, slurred speech.\n    BP 186/102, HR 88, SpO2 96%.\n    CT brain: no haemorrhage, left MCA territory infarct.\n    Platelets 2.4 lakh, Hb 13.2, RBS 148, Creat 1.0\n    Plan: admit to ICU for thrombolysis window monitoring, aspirin,\n    stroke unit referral."
+  },
+  {
+    "id": "r025",
+    "template": "sepsis",
+    "expected_severity": "Red",
+    "expected_specialist": "none",
+    "note": "lactate 5.2 + hypotension = septic shock = Red",
+    "noise": "clean",
+    "report_text": "Vikram Singh, 63/M, known type 2 diabetes.\n    Fever with chills 4 days, reduced urine output, confusion since morning.\n    Temp 104.8 F, HR 138/min, BP 78/46 mmHg, RR 32, SpO2 90% on 4L O2.\n    Cap refill 5 sec, mottled extremities, oliguria.\n    Lactate 5.2 mmol/L\n    TLC 24,600, Hb 12.1, Platelets 78,000/uL, Creatinine 2.8 mg/dL\n    Urine: nitrite positive, pus cells abundant\n    Blood culture: growth of E. coli (preliminary)\n    Impression: Septic shock secondary to complicated UTI.\n    Plan: ICU, broad-spectrum IV antibiotics, aggressive fluids, vasopressors."
+  },
+  {
+    "id": "r025n",
+    "template": "sepsis",
+    "expected_severity": "Red",
+    "expected_specialist": "none",
+    "note": "lactate 5.2 + hypotension = septic shock = Red",
+    "noise": "ocr",
+    "report_text": "Vikram Singh, 36/M, known type 2 diabetes.\n    Fever with chills 4 days, reduced urine output, confusion since morning.\nTemp 104.8 F, HR 138/min, BP 78/46 mmHg, RR 32, SpO2 90% on 4L O2.\nCap refill 5 sec, mottled extremities, oliguria.\n    Lactate 5.2 mmol/L\n    TLC 14,600, Hb 12.2, Platelets 78,000/uL, Creatinine 2.8 mg/dL\n    Urine: nitrite positive, pus cells abundant\n    Blood culture: growth of E. coli (preliminary)\n    Impression: Septic shock secondary to complicated UTI.\n    Plan: ICU, broad-spectrum IV antibiotics, aggressive fluids, vasopressors."
+  },
+  {
+    "id": "r026",
+    "template": "sepsis",
+    "expected_severity": "Red",
+    "expected_specialist": "none",
+    "note": "lactate 5.2 + hypotension = septic shock = Red",
+    "noise": "clean",
+    "report_text": "Naveen Gowda, 63/M, known type 2 diabetes.\n    Fever with chills 4 days, reduced urine output, confusion since morning.\n    Temp 104.8 F, HR 138/min, BP 78/46 mmHg, RR 32, SpO2 90% on 4L O2.\n    Cap refill 5 sec, mottled extremities, oliguria.\n    Lactate 5.2 mmol/L\n    TLC 24,600, Hb 12.1, Platelets 78,000/uL, Creatinine 2.8 mg/dL\n    Urine: nitrite positive, pus cells abundant\n    Blood culture: growth of E. coli (preliminary)\n    Impression: Septic shock secondary to complicated UTI.\n    Plan: ICU, broad-spectrum IV antibiotics, aggressive fluids, vasopressors."
+  },
+  {
+    "id": "r026n",
+    "template": "sepsis",
+    "expected_severity": "Red",
+    "expected_specialist": "none",
+    "note": "lactate 5.2 + hypotension = septic shock = Red",
+    "noise": "ocr",
+    "report_text": "Naveen Gowda, 36/M, known type 2 diabetes.\n    Fever with chills 4 days, reduced urine output, confusion since morning.\n    Temp 104.8 F, HR 138/min, BP 78/46 mmHg, RR 32, SpO2 90% on 4L O2.\n    Cap refill 5 sec, mottled extremities, oliguria.\n    Lactate 5.2 mmol/L\n    TLC 24,600, Hb 12.1, Platelets 78,000/uL, Creatinine 2.8 mg/dL\nUrine: nitrite positive, pus cells abundant\n    Blood culture: growth of E. coli (preliminary)\n    Impression: Septic shock secondary to complicated UTI.\n    Plan: ICU, broad-spectrum IV antibiotics, aggressive fluids, vasopressors."
+  },
+  {
+    "id": "r027",
+    "template": "paediatric_severe_anaemia",
+    "expected_severity": "Red",
+    "expected_specialist": "pediatrician",
+    "note": "Hb 5.4 in a 3-year-old = Red",
+    "noise": "clean",
+    "report_text": "Name Meena Kumari, 3 yrs, weight 11 kg. Mother reports poor appetite and\n    lethargy since 2 weeks. Refusal of feeds.\n    HR 146/min, RR 40/min, temp 99.4 F, pallor+++, oedema present.\n    Hb 5.4 g/dL, TLC 18,200, Platelets 3.9 lakh\n    PCV 17%, MCV 54 fL\n    Plan: admit to paediatric ward, admit to ICU, blood transfusion,\n    deworming, nutritional rehabilitation."
+  },
+  {
+    "id": "r027n",
+    "template": "paediatric_severe_anaemia",
+    "expected_severity": "Red",
+    "expected_specialist": "pediatrician",
+    "note": "Hb 5.4 in a 3-year-old = Red",
+    "noise": "ocr",
+    "report_text": "Name Meena Kumari, 3 yrs, weight 11 kg. Mother reports poor appetite and\n    lethargy since 2 weeks. Refusal of feeds.\n    HR 146/min, RR 40/min, temp 99.4 F, pallor+++, oedema present.\n    Hb 2.4 g/dL, TLC 18,500, Platelets 3.9 lakh\n    PCV 17%, MCV 54 fL\n    Plan: admit to paediatric ward, admit to ICU, blood transfusion,\n    deworming, nutritional rehabilitation."
+  },
+  {
+    "id": "r028",
+    "template": "paediatric_severe_anaemia",
+    "expected_severity": "Red",
+    "expected_specialist": "pediatrician",
+    "note": "Hb 5.4 in a 3-year-old = Red",
+    "noise": "clean",
+    "report_text": "Name Sunita Devi, 3 yrs, weight 11 kg. Mother reports poor appetite and\n    lethargy since 2 weeks. Refusal of feeds.\n    HR 146/min, RR 40/min, temp 99.4 F, pallor+++, oedema present.\n    Hb 5.4 g/dL, TLC 18,200, Platelets 3.9 lakh\n    PCV 17%, MCV 54 fL\n    Plan: admit to paediatric ward, admit to ICU, blood transfusion,\n    deworming, nutritional rehabilitation."
+  },
+  {
+    "id": "r028n",
+    "template": "paediatric_severe_anaemia",
+    "expected_severity": "Red",
+    "expected_specialist": "pediatrician",
+    "note": "Hb 5.4 in a 3-year-old = Red",
+    "noise": "ocr",
+    "report_text": "Name Sunita Devi, 1 yrs, weight 13 kg. Mother reports poor appetite and\n    lethargy since 2 weeks. Refusal of feeds.\n    HR 146/min, RR 40/min, temp 99.4 F, pallor+++, oedema present.\n    Hb 2.4 g/dL, TLC 18,500, Platelets 3.9 lakh\n    PCV 17%, MCV 54 fL\n    Plan: admit to paediatric ward, admit to ICU, blood transfusion,\n    deworming, nutritional rehabilitation."
+  },
+  {
+    "id": "r029",
+    "template": "severe_pneumonia_with_sepsis",
+    "expected_severity": "Red",
+    "expected_specialist": "pediatrician",
+    "note": "hypoxaemia + shock + convulsion in child = Red",
+    "noise": "clean",
+    "report_text": "Gopal Das, 2 yrs 8 months, 11 kg.\n    Fast breathing since 2 days, grunting, cannot feed, convulsions at home.\n    RR 54/min, HR 158/min, temp 105 F, SpO2 88% on oxygen, grunting,\n    chest indrawing, crackles bilateral.\n    GCS 12/15, capillary refill 5 sec.\n    WBC 22,000, Hb 9.8, Platelets 4.2 lakh\n    CXR: bilateral perihilar infiltrates\n    Plan: ICU admission, IV ceftriaxone, nebulisation, oxygen, ceftazidime."
+  },
+  {
+    "id": "r029n",
+    "template": "severe_pneumonia_with_sepsis",
+    "expected_severity": "Red",
+    "expected_specialist": "pediatrician",
+    "note": "hypoxaemia + shock + convulsion in child = Red",
+    "noise": "ocr",
+    "report_text": "Gopal Das, 2 yrs 8 months, 11 kg.\n    Fast breathing since 2 days, grunting, cannot feed, convulsions at home.\n    RR 54/min, HR 158/min, temp 105 F, SpO2 88% on oxygen, grunting,\n    chest indrawing, crackles bilateral.\n    GCS 12/15, capillary refill 5 sec.\n    WBC 22,000, Hb 9.8, Platelets 4.2 lakh\n    CXR: bilateral perihilar infiltrates\n    Plan: ICU admission, IV ceftriaxone, nebulisation, oxygen, ceftazidime."
+  },
+  {
+    "id": "r030",
+    "template": "severe_pneumonia_with_sepsis",
+    "expected_severity": "Red",
+    "expected_specialist": "pediatrician",
+    "note": "hypoxaemia + shock + convulsion in child = Red",
+    "noise": "clean",
+    "report_text": "Arun Pillai, 2 yrs 8 months, 11 kg.\n    Fast breathing since 2 days, grunting, cannot feed, convulsions at home.\n    RR 54/min, HR 158/min, temp 105 F, SpO2 88% on oxygen, grunting,\n    chest indrawing, crackles bilateral.\n    GCS 12/15, capillary refill 5 sec.\n    WBC 22,000, Hb 9.8, Platelets 4.2 lakh\n    CXR: bilateral perihilar infiltrates\n    Plan: ICU admission, IV ceftriaxone, nebulisation, oxygen, ceftazidime."
+  },
+  {
+    "id": "r030n",
+    "template": "severe_pneumonia_with_sepsis",
+    "expected_severity": "Red",
+    "expected_specialist": "pediatrician",
+    "note": "hypoxaemia + shock + convulsion in child = Red",
+    "noise": "ocr",
+    "report_text": "Arun Pillai, 2 yrs 8 months, 11 kg.\n    Fast breathing since 2 days, grunting, cannot feed, convulsions at home.\nRR 54/min, HR 158/min, temp 105 F, SpO2 88% on oxygen, grunting,\n    chest indrawing, crackles bilateral.\n    GCS 12/15, capillary refill 5 sec.\n    WBC 22,000, Hb 9.8, Platelets 4.2 lakh\n    CXR: bilateral perihilar infiltrates\n    Plan: ICU admission, IV ceftriaxone, nebulisation, oxygen, ceftazidime."
+  },
+  {
+    "id": "r031",
+    "template": "illegible_scan",
+    "expected_severity": "Yellow",
+    "expected_specialist": "none",
+    "note": "insufficient data - must not be auto-cleared Green",
+    "noise": "clean",
+    "report_text": "[SCAN UNCLEAR - MULTIPLE PAGES]\n    ....... pltslts: ~~~~~\n    Hb: ? mg/dl\n    Physician note: send again"
+  },
+  {
+    "id": "r031n",
+    "template": "illegible_scan",
+    "expected_severity": "Yellow",
+    "expected_specialist": "none",
+    "note": "insufficient data - must not be auto-cleared Green",
+    "noise": "ocr",
+    "report_text": "[SCAN UNCLEAR - MULTIPLE PAGES]\n    ....... pltslts: ~~~~~\n    Hb: ? mg/dl\n    Physician note: send again"
+  },
+  {
+    "id": "r032",
+    "template": "illegible_scan",
+    "expected_severity": "Yellow",
+    "expected_specialist": "none",
+    "note": "insufficient data - must not be auto-cleared Green",
+    "noise": "clean",
+    "report_text": "[SCAN UNCLEAR - MULTIPLE PAGES]\n    ....... pltslts: ~~~~~\n    Hb: ? mg/dl\n    Physician note: send again"
+  },
+  {
+    "id": "r032n",
+    "template": "illegible_scan",
+    "expected_severity": "Yellow",
+    "expected_specialist": "none",
+    "note": "insufficient data - must not be auto-cleared Green",
+    "noise": "ocr",
+    "report_text": "[SCAN UNCLEAR - MULTIPLE PAGES]\n    ....... pltslts: ~~~~~\n    Hb: ? mg/dl\nPhysician note: send again"
+  },
+  {
+    "id": "r033",
+    "template": "incomplete_upload",
+    "expected_severity": "Yellow",
+    "expected_specialist": "none",
+    "note": "one ambiguous sentence, no values",
+    "noise": "clean",
+    "report_text": "Patient name: Rajesh Yadav\n    Sent from CHC.\n    \"platelets low, please advise\" - ANO"
+  },
+  {
+    "id": "r033n",
+    "template": "incomplete_upload",
+    "expected_severity": "Yellow",
+    "expected_specialist": "none",
+    "note": "one ambiguous sentence, no values",
+    "noise": "ocr",
+    "report_text": "Patient name: Rajesh Yadav\n    Sent from CHC.\n    \"platclets low, please advise\" - ANO"
+  },
+  {
+    "id": "r034",
+    "template": "incomplete_upload",
+    "expected_severity": "Yellow",
+    "expected_specialist": "none",
+    "note": "one ambiguous sentence, no values",
+    "noise": "clean",
+    "report_text": "Patient name: Kavita Rao\n    Sent from CHC.\n    \"platelets low, please advise\" - ANO"
+  },
+  {
+    "id": "r034n",
+    "template": "incomplete_upload",
+    "expected_severity": "Yellow",
+    "expected_specialist": "none",
+    "note": "one ambiguous sentence, no values",
+    "noise": "ocr",
+    "report_text": "Patient name: Kavita Rao\n    Sent from CHC.\n\"platelets low, please advise\" - ANO"
+  },
+  {
+    "id": "r035",
+    "template": "negated_shock_mention",
+    "expected_severity": "Yellow",
+    "expected_specialist": "hematologist",
+    "note": "stable, no shock - text contains 'shock' only as negation",
+    "noise": "clean",
+    "report_text": "Name: Sunita Devi, 34 yrs M. Admitted with dengue fever, day 5.\n    Attended by medical registrar.\n    Temp 100.8 F, HR 96/min, BP 116/74, SpO2 98%.\n    Platelets 68,000/uL, WBC 5,200, Haematocrit 39%\n    Dengue NS1 POSITIVE.\n    Examination: no shock, no bleeding, no plasma leak, no pleural effusion.\n    Clinician note: patient is NOT in shock and is haemodynamically stable.\n    No need for blood products. Plan: continue oral rehydration on the ward,\n    monitor platelets daily, review in 48 hours."
+  },
+  {
+    "id": "r036",
+    "template": "negated_shock_mention",
+    "expected_severity": "Yellow",
+    "expected_specialist": "hematologist",
+    "note": "stable, no shock - text contains 'shock' only as negation",
+    "noise": "clean",
+    "report_text": "Name: Kavita Rao, 34 yrs M. Admitted with dengue fever, day 5.\n    Attended by medical registrar.\n    Temp 100.8 F, HR 96/min, BP 116/74, SpO2 98%.\n    Platelets 68,000/uL, WBC 5,200, Haematocrit 39%\n    Dengue NS1 POSITIVE.\n    Examination: no shock, no bleeding, no plasma leak, no pleural effusion.\n    Clinician note: patient is NOT in shock and is haemodynamically stable.\n    No need for blood products. Plan: continue oral rehydration on the ward,\n    monitor platelets daily, review in 48 hours."
+  },
+  {
+    "id": "r037",
+    "template": "negated_bleeding",
+    "expected_severity": "Yellow",
+    "expected_specialist": "hematologist",
+    "note": "negated bleeding/shock language, still thrombocytopenic",
+    "noise": "clean",
+    "report_text": "Kavita Rao, 45/F, dengue day 6.\n    Temp 100.4 F, HR 88, BP 124/78, SpO2 99%.\n    Platelets 74,000/uL, Haematocrit 40%, WBC 6,800\n    No bleeding from gums or petechiae. Tourniquet test negative.\n    No plasma leak on ultrasound. Not for ICU, no transfusion needed.\n    Plan: ward observation, ORS, paracetamol."
+  },
+  {
+    "id": "r038",
+    "template": "negated_bleeding",
+    "expected_severity": "Yellow",
+    "expected_specialist": "hematologist",
+    "note": "negated bleeding/shock language, still thrombocytopenic",
+    "noise": "clean",
+    "report_text": "Fatima Sheikh, 45/F, dengue day 6.\n    Temp 100.4 F, HR 88, BP 124/78, SpO2 99%.\n    Platelets 74,000/uL, Haematocrit 40%, WBC 6,800\n    No bleeding from gums or petechiae. Tourniquet test negative.\n    No plasma leak on ultrasound. Not for ICU, no transfusion needed.\n    Plan: ward observation, ORS, paracetamol."
+  },
+  {
+    "id": "r039",
+    "template": "unit_confusion_lakh",
+    "expected_severity": "Yellow",
+    "expected_specialist": "hematologist",
+    "note": "platelets written as 0.74 lakh, needs unit normalisation",
+    "noise": "clean",
+    "report_text": "Sunita Devi, 31 yrs M. Dengue.\n    Reported by referring centre in lakh/uL notation:\n    TLC 8.2,000  Hb 13.4  Platelets 0.74 lakh  Haematocrit 41%\n    Vitals stable, afebrile since morning, passing urine adequately.\n    Dengue NS1 positive.\n    Clinician note: 0.74 lakh/uL is approximately 74,000/uL, which is\n    moderate thrombocytopenia and does not need platelet transfusion.\n    Plan: admit for observation."
+  },
+  {
+    "id": "r040",
+    "template": "unit_confusion_lakh",
+    "expected_severity": "Yellow",
+    "expected_specialist": "hematologist",
+    "note": "platelets written as 0.74 lakh, needs unit normalisation",
+    "noise": "clean",
+    "report_text": "Rekha Patil, 31 yrs M. Dengue.\n    Reported by referring centre in lakh/uL notation:\n    TLC 8.2,000  Hb 13.4  Platelets 0.74 lakh  Haematocrit 41%\n    Vitals stable, afebrile since morning, passing urine adequately.\n    Dengue NS1 positive.\n    Clinician note: 0.74 lakh/uL is approximately 74,000/uL, which is\n    moderate thrombocytopenia and does not need platelet transfusion.\n    Plan: admit for observation."
+  },
+  {
+    "id": "r041",
+    "template": "stable_but_mentions_icu",
+    "expected_severity": "Green",
+    "expected_specialist": "none",
+    "note": "ICU appears only in a conditional plan line; patient is Green",
+    "noise": "clean",
+    "report_text": "Deepak Sharma, 28/M, dengue day 3.\n    Temp 99.6 F, HR 84, BP 122/78, SpO2 98%, capillary refill 2 sec.\n    Platelets 1.8 lakh, WBC 7,200, Hb 14.1\n    Dengue NS1 positive. No warning signs. Drinking orally.\n    Physician note: if platelets fall below 1 lakh or he develops warning\n    signs, escalate to ICU. Currently for ward-based care, no ICU needed.\n    Discharged today with oral rehydration salts."
+  },
+  {
+    "id": "r041n",
+    "template": "stable_but_mentions_icu",
+    "expected_severity": "Green",
+    "expected_specialist": "none",
+    "note": "ICU appears only in a conditional plan line; patient is Green",
+    "noise": "ocr",
+    "report_text": "Deepak Sharma, 82/M, dengue day 3.\n    Temp 99.6 F, HR 84, BP 122/78, SpO2 98%, capillary refill 2 sec.\n    Platelets 1.8 lakh, WBC 7,200, Hb 11.4\n    Dengue NS1 positive. No warning signs. Drinking orally.\n    Physician note: if platelets fall below 1 lakh or he develops warning\n    signs, escalate to ICU. Currently for ward-based care, no ICU needed.\n    Discharged today with oral rehydration salts."
+  },
+  {
+    "id": "r042",
+    "template": "stable_but_mentions_icu",
+    "expected_severity": "Green",
+    "expected_specialist": "none",
+    "note": "ICU appears only in a conditional plan line; patient is Green",
+    "noise": "clean",
+    "report_text": "Sita Devi, 28/M, dengue day 3.\n    Temp 99.6 F, HR 84, BP 122/78, SpO2 98%, capillary refill 2 sec.\n    Platelets 1.8 lakh, WBC 7,200, Hb 14.1\n    Dengue NS1 positive. No warning signs. Drinking orally.\n    Physician note: if platelets fall below 1 lakh or he develops warning\n    signs, escalate to ICU. Currently for ward-based care, no ICU needed.\n    Discharged today with oral rehydration salts."
+  },
+  {
+    "id": "r042n",
+    "template": "stable_but_mentions_icu",
+    "expected_severity": "Green",
+    "expected_specialist": "none",
+    "note": "ICU appears only in a conditional plan line; patient is Green",
+    "noise": "ocr",
+    "report_text": "Sita Devi, 28/M, dengue day 3.\n    Temp 99.6 F, HR 84, BP 122/78, SpO2 98%, capillary refill 2 sec.\n    Platelets 1.8 lakh, WBC 7,200, Hb 14.1\n    Dengue NS1 positive. No warning signs. Drinking orally.\n    Physician note: if platelets fall below 1 lakh or he develops warning\n    signs, escalate to ICU. Currently for ward-based care, no ICU needed.\n    Discharged today with oral rehydration salts."
+  },
+  {
+    "id": "r043",
+    "template": "borderline_platelets",
+    "expected_severity": "Yellow",
+    "expected_specialist": "hematologist",
+    "note": "platelets 21k, borderline - moderate not severe",
+    "noise": "clean",
+    "report_text": "Vikram Singh, 19 yrs F, dengue day 5.\n    Temp 101 F, HR 92, BP 112/70, SpO2 98%.\n    Platelets 21,000/uL\n    WBC 4,900, Haematocrit 39%, Hb 12.8\n    Dengue NS1 positive.\n    No bleeding, no plasma leak, haemodynamically stable.\n    Physician note: just above the 20,000 transfusion threshold; admit for\n    close monitoring rather than transfuse."
+  },
+  {
+    "id": "r044",
+    "template": "borderline_platelets",
+    "expected_severity": "Yellow",
+    "expected_specialist": "hematologist",
+    "note": "platelets 21k, borderline - moderate not severe",
+    "noise": "clean",
+    "report_text": "Arun Pillai, 19 yrs F, dengue day 5.\n    Temp 101 F, HR 92, BP 112/70, SpO2 98%.\n    Platelets 21,000/uL\n    WBC 4,900, Haematocrit 39%, Hb 12.8\n    Dengue NS1 positive.\n    No bleeding, no plasma leak, haemodynamically stable.\n    Physician note: just above the 20,000 transfusion threshold; admit for\n    close monitoring rather than transfuse."
+  },
+  {
+    "id": "r045",
+    "template": "paediatric_narrative_only",
+    "expected_severity": "Yellow",
+    "expected_specialist": "pediatrician",
+    "note": "child, weak but no red flags, key values missing",
+    "noise": "clean",
+    "report_text": "Patient: Meena Kumari, age 5 years, weight 18 kg. Brought by mother.\n    Mother reports the child has had fever for 4 days and is eating very\n    little. Mother also mentions the child is 'very weak and drowsy'.\n    On examination the child is alert and responds to mother, drinks some\n    water, breathing is normal, no grunting, no convulsion in the last 24 hrs.\n    Treating doctor could not get blood drawn today.\n    Advised: ORS sips, paracetamol half tablet, review tomorrow morning."
+  },
+  {
+    "id": "r046",
+    "template": "paediatric_narrative_only",
+    "expected_severity": "Yellow",
+    "expected_specialist": "pediatrician",
+    "note": "child, weak but no red flags, key values missing",
+    "noise": "clean",
+    "report_text": "Patient: Lakshmi Narayan, age 5 years, weight 18 kg. Brought by mother.\n    Mother reports the child has had fever for 4 days and is eating very\n    little. Mother also mentions the child is 'very weak and drowsy'.\n    On examination the child is alert and responds to mother, drinks some\n    water, breathing is normal, no grunting, no convulsion in the last 24 hrs.\n    Treating doctor could not get blood drawn today.\n    Advised: ORS sips, paracetamol half tablet, review tomorrow morning."
+  },
+  {
+    "id": "r047",
+    "template": "missed_icu_patient",
+    "expected_severity": "Red",
+    "expected_specialist": "none",
+    "note": "septic shock - lactate 4.9 + hypotension",
+    "noise": "clean",
+    "report_text": "Sita Devi, 57/M, diabetic, presented with fever and altered sensorium.\n    On arrival HR 132, BP 84/52, SpO2 90% on 2L, cap refill 5 sec, mottled.\n    Cold extremities, oliguria since morning.\n    Serum lactate 4.9 mmol/L. Urine culture: E. coli.\n    TLC 19,800, Platelets 92,000/uL, Creatinine 2.4 mg/dL.\n    Physician note: needs admission to the intensive care unit for\n    inotropes and broad spectrum antibiotics."
+  },
+  {
+    "id": "r047n",
+    "template": "missed_icu_patient",
+    "expected_severity": "Red",
+    "expected_specialist": "none",
+    "note": "septic shock - lactate 4.9 + hypotension",
+    "noise": "ocr",
+    "report_text": "Sita Devi, 75/M, diabetic, presented with fever and altered sensorium.\nOn arrival HR 132, BP 84/52, SpO2 90% on 2L, cap refill 5 sec, mottled.\n    Cold extremities, oliguria since morning.\n    Serum lactate 4.9 mmol/L. Urine culture: E. coli.\n    TLC 19,800, Platelets 92,000/uL, Creatinine 2.4 mg/dL.\n    Physician note: needs admission to the intensive care unit for\n    inotropes and broad spectrum antibiotics."
+  },
+  {
+    "id": "r048",
+    "template": "missed_icu_patient",
+    "expected_severity": "Red",
+    "expected_specialist": "none",
+    "note": "septic shock - lactate 4.9 + hypotension",
+    "noise": "clean",
+    "report_text": "Sita Devi, 57/M, diabetic, presented with fever and altered sensorium.\n    On arrival HR 132, BP 84/52, SpO2 90% on 2L, cap refill 5 sec, mottled.\n    Cold extremities, oliguria since morning.\n    Serum lactate 4.9 mmol/L. Urine culture: E. coli.\n    TLC 19,800, Platelets 92,000/uL, Creatinine 2.4 mg/dL.\n    Physician note: needs admission to the intensive care unit for\n    inotropes and broad spectrum antibiotics."
+  },
+  {
+    "id": "r048n",
+    "template": "missed_icu_patient",
+    "expected_severity": "Red",
+    "expected_specialist": "none",
+    "note": "septic shock - lactate 4.9 + hypotension",
+    "noise": "ocr",
+    "report_text": "Sita Devi, 57/M, diabetic, presented with fever and altered sensorium.\n    On arrival HR 132, BP 84/52, SpO2 90% on 2L, cap refill 5 sec, mottled.\n    Cold extremities, oliguria since morning.\n    Serum lactate 9.4 mmol/L. Urine culture: E. coli.\n    TLC 19,802, Platelets 92,000/uL, Creatinine 0.4 mg/dL.\n    Physician note: needs admission to the intensive care unit for\n    inotropes and broad spectrum antibiotics."
+  }
+]

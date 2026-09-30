@@ -1,0 +1,12 @@
+fastapi==0.115.0
+uvicorn==0.30.6
+pydantic==2.9.2
+pandas==2.2.3
+# numpy 2.3+ breaks the pandas 2.2.x binary ABI on Windows ("DLL load failed
+# while importing aggregations"). Keep in step with the pandas pin.
+numpy<2.3
+groq==1.7.0
+python-dotenv==1.0.1
+
+# Dev only
+pytest==8.3.4

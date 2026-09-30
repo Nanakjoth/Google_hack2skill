@@ -1,0 +1,27 @@
+# Secrets — never commit. .env is where GROQ_API_KEY lives.
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Eval output — regenerate with `python -m eval.run_eval`
+eval/results.json
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Runtime
+server.log
+*.log
