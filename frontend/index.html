@@ -205,11 +205,35 @@
         <div class="portal-grid">
           <div class="card">
             <div class="card-head tight">
-              <h3>Track a case</h3>
+              <h3>Upload a report</h3>
               <span class="spacer"></span>
-              <span class="psub" id="portalPickSub">Pick an open case</span>
+              <span class="psub">or use a case ID</span>
             </div>
             <div class="field" style="margin-top:15px">
+              <label for="pupname">Your name</label>
+              <input type="text" id="pupname" placeholder="e.g. Ravi Kumar" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="field">
+              <label for="pupfile">Report file</label>
+              <div class="updrop" id="pupdrop">
+                <input type="file" id="pupfile" accept=".txt,.md,.csv,.text,text/plain" hidden>
+                <div class="updrop-in">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 9 5-5 5 5"/><path d="M12 4v12"/></svg>
+                  <b>Choose a report file</b>
+                  <span class="psub">Plain text, extracted from a photo by whatever OCR the clinic already uses.</span>
+                </div>
+              </div>
+              <p class="psub upnote">
+                Photos are not accepted here. This prototype has no OCR of its own, and
+                silently sending an image the model cannot read would triage nothing.
+                Extract the text first, then upload that.
+              </p>
+            </div>
+            <button class="primary" id="pupGo" style="width:100%">Submit report</button>
+
+            <div class="portal-or"><span>or track a case you already submitted</span></div>
+
+            <div class="field">
               <label for="portalId">Case ID</label>
               <div class="field-row" style="margin-bottom:0">
                 <input type="number" id="portalId" placeholder="e.g. 3" min="1" autocomplete="off">

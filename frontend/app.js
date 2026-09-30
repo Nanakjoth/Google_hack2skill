@@ -972,6 +972,96 @@ function describeReservation(res) {
   return parts.length ? parts.join(' · ') : 'case load only';
 }
 
+/* ---------------- patient portal upload (§19 screen 1, "Upload Report") ---------------- */
+
+// The file the patient chose, held until submit. Reading it on change rather
+// than on submit means the size and type are known before anything is sent, so
+// an oversized or wrong-typed file fails immediately instead of after a
+// round-trip.
+let portalFile = null;
+const MAX_UPLOAD_BYTES = 200 * 1024;
+
+function portalUploadError(msg) {
+  $('pupdrop').classList.add('bad');
+  toast('err', 'Cannot use that file', msg);
+  portalFile = null;
+  $('pupfile').value = '';
+}
+
+// Takes the file directly rather than reading it off an input element, so the
+// picker and the drop handler share one validation path. Assigning to
+// input.files is not reliable across browsers, and doing it just to normalise
+// the two paths would be fragile for no gain.
+function acceptPortalFile(f) {
+  $('pupdrop').classList.remove('bad');
+  if (!f) { portalFile = null; return; }
+  if (f.size > MAX_UPLOAD_BYTES) {
+    portalUploadError(`${f.name} is ${Math.round(f.size / 1024)} KB. The limit is 200 KB — a report is text, not an image.`);
+    return;
+  }
+  portalFile = f;
+  $('pupdrop').querySelector('.updrop-in b').textContent = f.name;
+}
+
+function resetPortalUpload() {
+  portalFile = null;
+  $('pupfile').value = '';
+  $('pupdrop').classList.remove('bad');
+  $('pupdrop').querySelector('.updrop-in b').textContent = 'Choose a report file';
+}
+
+async function onPortalUpload() {
+  if (!portalFile) {
+    toast('err', 'No file chosen', 'Pick a report file first, or enter a case ID below to track an existing case.');
+    return;
+  }
+  const btn = $('pupGo');
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Submitting…';
+  try {
+    // FileReader rather than file.text(): the browser build this ships to may
+    // be older than the Blob.text() method.
+    const text = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result || ''));
+      r.onerror = () => reject(new Error('the file could not be read'));
+      r.readAsText(portalFile);
+    });
+
+    const body = text.trim();
+    if (!body) throw new Error('the file is empty');
+
+    const data = await api('/patients', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: $('pupname').value.trim() || 'Unnamed patient',
+        case_type: 'normal',
+        report_text: body
+      })
+    });
+
+    toast(data.manual_review ? 'err' : 'ok',
+      `${data.name} — ${data.severity}`,
+      data.manual_review
+        ? 'Held for a clinician. Nothing is decided automatically.'
+        : `Queued · ${data.hospital || 'no facility with capacity'}`);
+
+    resetPortalUpload();
+    $('pupname').value = '';
+    // The point of a portal is to see what happened, so show the new case
+    // rather than dropping the patient on a queue they cannot interpret.
+    $('portalId').value = data.id;
+    loadPortal(data.id);
+  } catch (e) {
+    toast('err', 'Upload failed', e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+}
+
 /* ============================================================
    PATIENT PORTAL  (§19 screen 1)
 
@@ -1483,6 +1573,19 @@ function init() {
   // patient portal
   $('portalGo').addEventListener('click', () => loadPortal($('portalId').value));
   $('portalId').addEventListener('keydown', e => { if (e.key === 'Enter') loadPortal(e.target.value); });
+  $('pupfile').addEventListener('change', e => acceptPortalFile(e.target.files && e.target.files[0]));
+  $('pupGo').addEventListener('click', onPortalUpload);
+  // Clicking anywhere on the drop zone opens the picker. The <input> is hidden
+  // so the whole card can be the hit target; it stays keyboard-reachable through
+  // the label, so this is an enhancement rather than the only way in.
+  $('pupdrop').addEventListener('click', () => $('pupfile').click());
+  $('pupdrop').addEventListener('dragover', e => { e.preventDefault(); $('pupdrop').classList.add('over'); });
+  $('pupdrop').addEventListener('dragleave', () => $('pupdrop').classList.remove('over'));
+  $('pupdrop').addEventListener('drop', e => {
+    e.preventDefault();
+    $('pupdrop').classList.remove('over');
+    acceptPortalFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]);
+  });
 
   // command
   $('refreshBtn').addEventListener('click', () => {

@@ -1119,3 +1119,33 @@ html[data-theme="dark"] .ba-col.after .ba-steps .n { color: var(--bg); }
 .banote { padding: 14px 16px; background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: var(--r-m); }
 .banote b { font-size: .84rem; display: block; margin-bottom: 6px; }
 .banote p { margin: 0; font-size: .77rem; line-height: 1.6; color: var(--text-2); }
+
+/* Upload zone, inside the patient portal. Bordered rather than a solid fill so
+   the dropped file stays the most prominent thing on the card. */
+.updrop {
+  position: relative;
+  border: 1.5px dashed var(--border);
+  border-radius: var(--r-m);
+  background: var(--panel-2);
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.updrop:hover, .updrop.over { border-color: var(--accent-2); background: var(--accent-soft); }
+.updrop.bad { border-color: var(--red-line); background: var(--red-bg); }
+.updrop-in {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 20px 16px; text-align: center; pointer-events: none;
+}
+.updrop-in svg { width: 22px; height: 22px; color: var(--accent); }
+.updrop-in b { font-size: .85rem; font-weight: 600; }
+.updrop-in .psub { font-size: .7rem; line-height: 1.5; max-width: 34ch; }
+.upnote { margin: 8px 0 14px; font-size: .7rem; line-height: 1.55; }
+
+.portal-or {
+  display: flex; align-items: center; gap: 10px;
+  margin: 18px 0 14px; color: var(--muted);
+  font-size: .68rem; text-transform: uppercase; letter-spacing: .05em;
+}
+.portal-or::before, .portal-or::after {
+  content: ""; flex: 1; height: 1px; background: var(--border-soft);
+}
