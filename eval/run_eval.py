@@ -13,12 +13,28 @@ Reports:
   * safety misses: Red cases downgraded to Yellow/Green are counted separately
     and weighted, since under-triage is the error that kills
   * specialist agreement
+  * routing accuracy, by driving the real Agent 2 and Agent 3 rather than
+    scoring Agent 1's opinion of where the case should go
+  * how many cases were held for a clinician instead of auto-dispositioned
   * latency and token usage, with a cost estimate
 
 Run:  python -m eval.run_eval [--limit N] [--out results.json]
 
 Requires GOOGLE_API_KEY. It makes one API call per report, so run it with
 --limit while iterating.
+
+RATE LIMITS - read this before running the full set.
+On the free tier a project gets ~20 generate_content calls per day PER MODEL.
+The full 78-report set therefore cannot be run more than once a day on a free
+key, and will return 429 RESOURCE_EXHAUSTED part-way through on the second run.
+Options:
+  * --limit 20 (a representative slice) while iterating
+  * bill the project, which raises the ceiling substantially
+  * rely on LLM_FALLBACK_MODELS: quota is counted per model, so when one model
+    reports 429 the retry loop rotates to the next and keeps going
+Anything measured under a partial run is still reported honestly - the harness
+records how many reports it actually attempted, and a run cut short by a rate
+limit is marked as such rather than quietly scored on the reports it got.
 """
 
 import argparse
@@ -186,10 +202,19 @@ def evaluate(reports: list, limit: int | None = None) -> dict:
     print(f"{'id':<8}{'triage':<7}{'expected':<9}{'noise':<7}{'ok':<4}{'ms':<7}note")
     print("-" * 78)
 
+    # A run stopped by quota is not a run that scored badly, and the two must
+    # never look alike in the output. Attributed separately from the start.
+    throttled = []
+
     for r in reports:
         started = time.perf_counter()
         result = llm.triage_report(r["report_text"])
         elapsed = (time.perf_counter() - started) * 1000
+
+        if result is None:
+            reason = (llm.trace()[0].get("reason", "") if llm.trace() else "")
+            if "429" in reason or "RESOURCE_EXHAUSTED" in reason or "quota" in reason:
+                throttled.append(r["id"])
 
         expected = r["expected_severity"]
         predicted = result.severity if result else None
@@ -309,6 +334,7 @@ def evaluate(reports: list, limit: int | None = None) -> dict:
         "llm": {
             "accuracy": round(llm_hits / n, 4) if n else 0,
             "errors": errors,
+            "throttled": throttled,
             "specialist_accuracy": round(spec_ok / spec_n, 4) if spec_n else None,
             "under_triage_count": len(under),
             "under_triage_rate": round(len(under) / n, 4) if n else 0,
@@ -376,6 +402,16 @@ def print_report(res: dict) -> None:
           f'({res["llm"]["over_triage_rate"]:.1%})  <-- burns a doctor slot')
     print(f'specialist acc   {res["llm"]["specialist_accuracy"]}')
     print(f'errors/retries   {res["llm"]["errors"]}')
+    throttled = res["llm"].get("throttled") or []
+    if throttled:
+        # Loud, because otherwise these rows read as model failures and the
+        # accuracy figure above silently means "accuracy until we ran out".
+        print(f'\n!! RATE LIMITED: {len(throttled)} of {res["n"]} reports were '
+              f'rejected by the API quota and scored as errors.')
+        print(f'!! They are NOT model failures. ids: '
+              f'{", ".join(throttled[:12])}{" ..." if len(throttled) > 12 else ""}')
+        print('!! Free tier is ~20 calls/day/model. Use --limit, or bill the '
+              'project, or widen LLM_FALLBACK_MODELS.')
 
     rt = res.get("routing") or {}
     if rt.get("scored"):

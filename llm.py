@@ -23,6 +23,7 @@ CONFIG (env vars, never hardcoded):
 """
 
 import os
+import re
 import time
 from pathlib import Path
 from typing import Any, Optional
@@ -35,10 +36,29 @@ from models import TriageResult
 # win over the file, so this does not override a real deployment's config.
 load_dotenv()
 
-MODEL = os.getenv("LLM_MODEL", "gemini-2.5-flash")
+# Model choice, verified against the live API rather than assumed.
+#
+# `gemini-2.5-flash` (the original default) now returns 404 for new API keys,
+# and the `*-latest` aliases were returning 503 "high demand" on the structured
+# output path during testing. A dated id also rots: a retirement silently pushes
+# every report onto the fallback path until someone reads a trace. So the
+# default is a model confirmed to accept our response_schema, and FALLBACK_MODELS
+# gives the retry loop somewhere else to go when one is at capacity.
+#
+# A model that does not support `response_schema` cannot appear in this list -
+# the retry would burn attempts and land on the same 400.
+MODEL = os.getenv("LLM_MODEL", "gemini-3-flash-preview")
+FALLBACK_MODELS = tuple(
+    m.strip() for m in
+    os.getenv("LLM_FALLBACK_MODELS", "gemini-3.1-flash-lite").split(",")
+    if m.strip()
+)
 TIMEOUT = float(os.getenv("LLM_TIMEOUT", "30"))
 RETRIES = int(os.getenv("LLM_RETRIES", "2"))
 THINKING_BUDGET = int(os.getenv("LLM_THINKING_BUDGET", "0"))
+# First retry wait, doubled each attempt. Gemini's Flash tier returns 503
+# "high demand" under load; the wait has to outlast a capacity blip.
+BACKOFF_BASE = float(os.getenv("LLM_BACKOFF_BASE", "2.5"))
 MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "1024"))
 
 # Approximate Gemini per-1M-token rates (USD) used by the eval cost estimate.
@@ -130,9 +150,43 @@ def available() -> bool:
     return bool(os.getenv("GOOGLE_API_KEY"))
 
 
+_CLIENT = None
+
+
 def _client():
-    from google import genai
-    return genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
+    """A single SDK client, created once and reused.
+
+    Building a throwaway client per call looks harmless and is not: the SDK's
+    underlying httpx client is closed when the wrapper is finalised, and under
+    GC timing the request goes out on a closed pool ("Cannot send a request, as
+    the client has been closed"). One process-wide client also means one
+    connection pool instead of a fresh TLS handshake per report.
+    """
+    global _CLIENT
+    if _CLIENT is None:
+        from google import genai
+        _CLIENT = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
+    return _CLIENT
+
+
+def _backoff(attempt: int, err: Exception) -> float:
+    """How long to wait before the next attempt.
+
+    Two failure modes need different treatment. A 429 comes back with a
+    Retry-After, and ignoring it just burns quota. Everything else - mostly
+    503 "high demand" on the Flash tier - clears in seconds, so the wait has to
+    be long enough to matter. 1.5s/3s was not: three attempts inside five
+    seconds all landed in the same capacity spike and the report fell through
+    to the rule-based path for no good reason.
+    """
+    retry_after = getattr(getattr(err, "details", None), "retry_delay", None)
+    if retry_after is None:
+        m = re.search(r"retryDelay[:\s]+'?(\d+(?:\.\d+)?)s", str(err))
+        if m:
+            retry_after = float(m.group(1))
+    if retry_after is not None:
+        return min(float(retry_after) + 0.5, 30.0)
+    return min(BACKOFF_BASE * (2 ** attempt), 30.0)
 
 
 def _finish_reason(resp) -> str:
@@ -175,11 +229,15 @@ def triage_report(report_text: str) -> Optional[TriageResult]:
     )
 
     last = "unknown error"
+    # Rotated across attempts. A capacity 503 on one Flash model is very often
+    # fine on another, and rotating is faster than waiting out a backoff.
+    order = (MODEL, *FALLBACK_MODELS)
     for attempt in range(RETRIES + 1):
+        model = order[attempt % len(order)]
         started = time.perf_counter()
         try:
             resp = _client().models.generate_content(
-                model=MODEL,
+                model=model,
                 contents=f"Lab report:\n\n{report_text}",
                 config=config,
             )
@@ -196,7 +254,7 @@ def triage_report(report_text: str) -> Optional[TriageResult]:
             usage = getattr(resp, "usage_metadata", None)
             _record({
                 "status": "ok",
-                "model": MODEL,
+                "model": model,
                 "latency_ms": round((time.perf_counter() - started) * 1000),
                 "attempt": attempt + 1,
                 "tokens": {
@@ -213,7 +271,7 @@ def triage_report(report_text: str) -> Optional[TriageResult]:
             # cheap and keeps this branch simple.
             last = f"{type(e).__name__}: {e}"
             if attempt < RETRIES:
-                time.sleep(1.5 * (attempt + 1))
+                time.sleep(_backoff(attempt, e))
                 continue
         except Exception as e:
             # Includes pydantic ValidationError - the model emitted JSON that
@@ -223,7 +281,7 @@ def triage_report(report_text: str) -> Optional[TriageResult]:
 
         _record({
             "status": "error",
-            "model": MODEL,
+            "model": model,
             "latency_ms": round((time.perf_counter() - started) * 1000),
             "attempt": attempt + 1,
             "reason": last[:400],
