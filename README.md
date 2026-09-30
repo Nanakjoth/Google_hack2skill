@@ -44,17 +44,53 @@ Requires Python 3.12 (3.14 has no `pydantic-core` wheel and fails to build).
 ```
 py -3.12 -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
-copy .env.example .env        # then paste your GROQ_API_KEY
+copy .env.example .env        # then paste your GOOGLE_API_KEY
 .venv\Scripts\uvicorn main:app --reload --port 8000
 ```
 
-Open http://localhost:8000/docs for the API explorer, or open
-`frontend/index.html` for the command-centre UI. The LLM path needs a Groq key;
-without one everything still runs on the rule-based path.
+Open **http://localhost:8000** for the console — FastAPI serves `frontend/` from
+the same origin, so one URL is the whole product and CORS never applies. Also
+available: `/docs` for the OpenAPI explorer, `/healthz` for model configuration.
+Opening `frontend/index.html` straight off disk still works if you prefer to
+keep the two separate.
+
+The LLM path needs a Google AI Studio key; without one everything still runs on
+the rule-based path.
 
 A demo backlog of 24 already-triaged cases is seeded at boot, so the queues have
 content on first load. They are flagged `seed: true` in the API and marked
 *demo* in the UI — no reviewer should mistake seeded data for a processed report.
+
+## Deploy to Google Cloud
+
+One container serves both the API and the console, so Cloud Run needs no static
+hosting bucket. **The API key is a Secret Manager value bound at deploy time —
+it is never baked into the image.**
+
+```
+# one-time setup
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com \
+                  secretmanager.googleapis.com artifactregistry.googleapis.com
+gcloud artifacts repositories create tele-triage \
+  --repository-format=docker --location=asia-south1
+gcloud secrets create gemini-api-key --replication-policy=automatic
+printf '%s' "$YOUR_KEY" | gcloud secrets versions add gemini-api-key
+
+# build, push and deploy
+gcloud builds submit --config cloudbuild.yaml
+```
+
+`cloudbuild.yaml` tags by commit SHA, pushes to Artifact Registry and deploys
+with `--set-secrets=GOOGLE_API_KEY=gemini-api-key:latest`. It also sets
+`ALLOWED_ORIGINS=none`, which disables the CORS middleware entirely — safe
+precisely because the console is served from the same origin as the API.
+
+The `Dockerfile` runs as an unprivileged user, binds `$PORT` (Cloud Run sets it
+to 8080) and `.dockerignore` refuses `.env` into the build context, so a stray
+key on a laptop cannot end up in a public image.
+
+> Not yet run. The build and deploy steps above are written but unverified — no
+> GCP project was available in the environment where this was written.
 
 ## Evaluating the model
 

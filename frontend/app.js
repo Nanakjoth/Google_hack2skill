@@ -86,6 +86,8 @@ const PAGES = {
   intake:   ['New Patient',     'Paste a lab report for model triage, or pick a case profile.'],
   pipeline: ['Agent Pipeline',  'Every agent decision this session, with the reasoning and score behind it.'],
   doctor:   ['Queues',          'Patient, doctor and senior queues. You decide: remote review, admit, or escalate.'],
+  portal:   ['Patient Portal',  'What a patient is told about their own case — position, wait, decision.'],
+  compare:  ['Before / After',  'The repeated physical queue this replaces, and what the report-driven path does instead.'],
   command:  ['Command Center',  'Live facility inventory, shortage alerts and 30-day cover projection.']
 };
 
@@ -237,13 +239,13 @@ function paintPills() {
     ? 'Model: checking…'
     : state.llmOk ? 'Model: ready' : 'Model: not configured';
   llm.title = state.llmOk
-    ? 'GROQ_API_KEY is set - pasted reports go to the model'
-    : 'No GROQ_API_KEY - the conservative rule-based fallback is used instead';
+    ? 'GOOGLE_API_KEY is set - pasted reports go to the model'
+    : 'No GOOGLE_API_KEY - the conservative rule-based fallback is used instead';
 }
 
 async function checkHealth() {
   try {
-    const h = await api('/');
+    const h = await api('/healthz');
     state.apiOk = true;
     state.llmOk = !!h.llm_configured;
   } catch (e) {
@@ -269,6 +271,8 @@ function switchTab(tab) {
 
   if (tab === 'pipeline') { renderPipeline(); loadTrace(); }
   if (tab === 'doctor') loadQueue();
+  if (tab === 'portal') loadPortal();
+  if (tab === 'compare') renderCompare();
   if (tab === 'command') { loadCommandCenter(); }
   refreshLoop();
 }
@@ -435,6 +439,135 @@ function rejectedReasons(step) {
   </details>`;
 }
 
+/* The plan's "N possible doctors, M eligible, 1 selected" as a funnel.
+
+   Agent 2 narrows the network on physical capacity, Agent 3 narrows what is
+   left on doctor availability and picks one. Showing the three numbers side by
+   side is what makes "why this doctor" answerable: the drop from `possible` to
+   `eligible` is the resource constraint, and it is a different reason from the
+   drop from `eligible` to `selected`. */
+function candidateFunnel(step) {
+  const c = step.candidates;
+  if (!c) return '';
+  const stages = [
+    ['Possible', c.possible, `every ${String(c.specialty).replace(/_/g, ' ')} doctor in the network`],
+    ['At capacity', c.eligible, 'facilities that physically hold the beds and stock'],
+    ['Free now', c.available, 'doctors with spare capacity right now'],
+    ['Selected', c.selected, 'nearest with headroom, least loaded there']
+  ];
+  return `<div class="funnel">
+    <div class="lbl">Candidate doctors — ${esc(c.specialty.replace(/_/g, ' '))}</div>
+    <div class="funnel-stages">
+      ${stages.map(([k, v, why], i) => `
+        <div class="fstage" style="animation-delay:${i * 80}ms">
+          <div class="fv">${v == null ? '—' : v}</div>
+          <div class="fk">${esc(k)}</div>
+          <div class="fw">${esc(why)}</div>
+        </div>
+        ${i < stages.length - 1 ? `<div class="farrow">${svg('chevron')}</div>` : ''}`).join('')}
+    </div>
+  </div>`;
+}
+
+/* The two panels the plan asks for side by side: what the model concluded, and
+   what the system then verified about the real world.
+
+   The split is the whole argument of the product, so it is drawn as two columns
+   with the boundary labelled. Each check is derived from the actual step data -
+   a check with no data behind it renders as "not recorded" rather than a green
+   tick, because a decorative tick on an unverified claim is worse than no
+   check at all. */
+function assessmentPanels(run, s2, s3) {
+  const rec = run.ai_recommendation || {};
+  const c = s3.candidates || {};
+  const b = s3.breakdown || {};
+  const specLabel = c.specialty
+    ? c.specialty.replace(/_/g, ' ')
+    : (run.specialty_label || run.specialty || 'none');
+
+  const checks = [
+    {
+      label: 'Specialist available',
+      ok: (s2.eligible || []).length > 0,
+      detail: (s2.eligible || []).length
+        ? `${(s2.eligible || []).length} of the network's facilities staff a ${esc(specLabel)} with capacity`
+        : 'no facility cleared the specialty check'
+    },
+    {
+      label: 'Facility holds the resources',
+      ok: (s2.eligible || []).length > 0,
+      detail: (s2.rejected || []).length
+        ? `${(s2.rejected || []).length} rejected on beds, stock or specialty — see step 2`
+        : 'every facility passed the physical check'
+    },
+    {
+      label: 'Doctor capacity available',
+      ok: typeof c.available === 'number' && c.available > 0,
+      detail: c.available != null
+        ? `${c.available} of ${c.eligible} eligible doctor(s) had free capacity`
+        : 'not recorded'
+    },
+    {
+      label: 'Location considered',
+      ok: b.distance_km != null,
+      detail: b.distance_km != null
+        ? `${b.distance_km} km from origin · proximity ${Number(b.proximity).toFixed(2)} (0.45 weight)`
+        : 'not recorded'
+    }
+  ];
+
+  const flag = run.manual_review
+    ? `<div class="mr-flag">${svg('warn')}<span><b>Held for clinician review.</b>
+        ${esc(run.triage_source === 'fallback'
+          ? 'The model was unavailable, so this report was not auto-cleared.'
+          : 'Model confidence was below the floor, so severity was not taken at face value.')}</span></div>`
+    : '';
+
+  return `<div class="assess">
+    <div class="assess-col ai">
+      <div class="assess-head">
+        ${svg('spark')}<h4>AI Assessment</h4>
+        <span class="chip ${run.triage_source === 'llm' ? 'ok' : 'warn'}">${esc(run.triage_source || 'rules')}</span>
+      </div>
+      <p class="assess-note">A proposal. No code path acts on any of this — the queue orders by
+        severity and a doctor decides.</p>
+      ${flag}
+      <dl class="assess-dl">
+        <dt>Severity</dt><dd><span class="badge ${esc(run.severity)}">${esc(run.severity)}</span></dd>
+        <dt>Specialty</dt><dd>${esc(String(specLabel).replace(/\b\w/g, m => m.toUpperCase()))}</dd>
+        <dt>Confidence</dt><dd>${run.confidence != null ? Math.round(run.confidence * 100) + '%' : '—'}</dd>
+        <dt>Recommended action</dt><dd>${esc(rec.action || '—')}</dd>
+      </dl>
+      <div class="assess-flags">
+        <div class="k">Red flags${(run.red_flags || []).length ? ` (${run.red_flags.length})` : ''}</div>
+        ${(run.red_flags || []).length
+          ? `<ul>${run.red_flags.map(f => `<li>${svg('warn')}${esc(f)}</li>`).join('')}</ul>`
+          : '<p class="psub">None reported.</p>'}
+      </div>
+    </div>
+    <div class="assess-col verify">
+      <div class="assess-head">
+        ${svg('check')}<h4>Routing Verification</h4>
+        <span class="chip">deterministic</span>
+      </div>
+      <p class="assess-note">Arithmetic against live inventory. The model never asserts any of this.</p>
+      <ul class="checks">
+        ${checks.map(c2 => `<li class="${c2.ok ? 'pass' : 'fail'}">
+          <span class="cmark">${svg(c2.ok ? 'check' : 'x')}</span>
+          <span class="cbody"><b>${esc(c2.label)}</b><span class="cdetail">${c2.detail}</span></span>
+        </li>`).join('')}
+      </ul>
+      <div class="verify-out">
+        <div class="k">Assigned</div>
+        <div class="doc">${esc(run.doctor || 'nobody — awaiting manual override')}</div>
+        <div class="fac">${esc(run.hospital || 'no facility')}</div>
+        ${run.reservation && !run.reservation.committed
+          ? '<div class="psub nobed">No bed or medicine held. A report reserves a review slot only.</div>' : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
 function runCard(run) {
   const s1 = run.steps[0] || {};
   const s2 = run.steps[1] || {};
@@ -442,9 +575,6 @@ function runCard(run) {
   const conf = run.confidence != null
     ? `<span class="chip">${svg('info')}confidence ${Math.round(run.confidence * 100)}%</span>` : '';
   const st = STATUS_META[run.status] || { label: run.status, tone: '' };
-  const flags = (run.red_flags && run.red_flags.length)
-    ? `<div class="flags">${run.red_flags.map(f => `<span class="flag">${svg('warn')}${esc(f)}</span>`).join('')}</div>` : '';
-
   const steps = run.steps.map((s, i) => `
     <div class="step" data-n="${i + 1}">
       <div class="step-title">
@@ -452,8 +582,9 @@ function runCard(run) {
         ${i === 0 ? sourceBadge(s1) : `<span class="chip ghost-chip">deterministic</span>`}
       </div>
       <p class="step-text">${esc(s.text)}</p>
-      ${i === 2 ? scoreBars(s3) : ''}
       ${i === 1 ? rejectedReasons(s2) : ''}
+      ${i === 2 ? candidateFunnel(s3) : ''}
+      ${i === 2 ? scoreBars(s3) : ''}
     </div>`).join('');
 
   return `<article class="run-card sev-${esc(run.severity)}">
@@ -469,7 +600,6 @@ function runCard(run) {
           <span>#${esc(run.id)}</span>
           ${conf ? `<span class="sep">·</span>${conf}` : ''}
         </div>
-        ${flags}
       </div>
       <div class="verdict">
         <div class="k">Assigned facility</div>
@@ -477,6 +607,7 @@ function runCard(run) {
         <div class="s">${esc(run.doctor || 'awaiting manual override')}</div>
       </div>
     </div>
+    ${assessmentPanels(run, s2, s3)}
     <div class="steps">${steps}</div>
   </article>`;
 }
@@ -502,7 +633,7 @@ async function loadTrace() {
     $('traceSub').textContent = `${t.calls.length} of last 50 calls · ${t.model}`;
     if (!t.configured) {
       el.innerHTML = `<div class="empty">${svg('info')}<strong>No model configured</strong>
-        <p>Set <code>GROQ_API_KEY</code> in the backend <code>.env</code> to enable the LLM triage path.
+        <p>Set <code>GOOGLE_API_KEY</code> in the backend <code>.env</code> to enable the LLM triage path.
         Submissions use the conservative rule-based fallback meanwhile.</p></div>`;
       return;
     }
@@ -842,6 +973,217 @@ function describeReservation(res) {
 }
 
 /* ============================================================
+   PATIENT PORTAL  (§19 screen 1)
+
+   The one screen in this app addressed to a patient rather than a clinician.
+   It reads GET /patients/{id} - the same endpoint the patient would hit on a
+   phone - and deliberately renders only the fields that endpoint returns. It
+   does not reach for the internal record, because the whole point of the
+   portal view is that it withholds stock levels, doctor workload and other
+   patients. Building this screen from /queue data instead would quietly
+   reintroduce exactly what the portal view exists to withhold.
+   ============================================================ */
+const PORTAL_TONE = {
+  awaiting_review:     { tone: 'warn',   head: 'Waiting for a doctor to review your report' },
+  awaiting_specialist: { tone: 'accent', head: 'A senior specialist is reviewing your case' },
+  unassigned:          { tone: 'bad',    head: 'No doctor is free yet — your case is still in the queue' },
+  admitted:            { tone: 'ok',     head: 'You have been asked to come in' },
+  closed_remote:       { tone: 'ok',     head: 'Handled remotely — no visit needed' }
+};
+
+const DECISION_COPY = {
+  no_visit: {
+    title: 'No physical visit required',
+    body: 'A doctor read your report and handled it remotely. You do not need to travel. ' +
+          'Keep taking the medicines advised and get a review if you get worse.'
+  },
+  visit_required: {
+    title: 'Please come to the facility',
+    body: 'A doctor has decided you need to be examined in person. A bed and any medicines ' +
+          'your case needs are already held for you.'
+  },
+  escalate: {
+    title: 'Referred to a senior specialist',
+    body: 'A doctor has passed your case to a senior consultant in the relevant specialty. ' +
+          'They will review your report and contact you with the next step.'
+  }
+};
+
+function portalDecision(p) {
+  if (!p.decision) {
+    return `<div class="pdec pending">
+      <div class="pdec-t">${svg('clock')}Awaiting a doctor's decision</div>
+      <p>Your report is in the queue. Nothing is decided until a doctor reviews it, and no
+      appointment is needed from you yet.</p>
+    </div>`;
+  }
+  const c = DECISION_COPY[p.decision] || { title: p.decision, body: '' };
+  return `<div class="pdec ${esc(p.decision)}">
+    <div class="pdec-t">${svg('check')}${esc(c.title)}</div>
+    <p>${esc(c.body)}</p>
+    ${p.decision_note ? `<div class="pnote"><b>Note from the doctor:</b> ${esc(p.decision_note)}</div>` : ''}
+  </div>`;
+}
+
+function portalCard(p) {
+  const t = PORTAL_TONE[p.status] || { tone: '', head: p.status };
+  const waiting = p.position != null;
+  return `<div class="pcard">
+    <div class="pcard-head">
+      <div>
+        <h3>${esc(p.name)}</h3>
+        <div class="pcard-meta">
+          <span class="badge ${esc(p.severity)}">${esc(p.severity)}</span>
+          <span>Case #${esc(p.id)}</span>
+          <span class="sep">·</span>
+          <span>${esc(p.case_label || '')}</span>
+        </div>
+      </div>
+      <span class="chip ${t.tone}">${esc(t.head)}</span>
+    </div>
+
+    <div class="pstats">
+      <div class="pstat">
+        <div class="k">Your place in the queue</div>
+        <div class="v">${waiting ? '#' + esc(p.position) : '—'}</div>
+        <div class="s">${waiting ? `of ${esc(p.queue_length)} waiting` : 'left the queue'}</div>
+      </div>
+      <div class="pstat">
+        <div class="k">Waiting for</div>
+        <div class="v">${waiting ? Math.round(p.waiting_minutes) + ' min' : '—'}</div>
+        <div class="s">${waiting ? 'since your report was submitted' : 'closed'}</div>
+      </div>
+      <div class="pstat">
+        <div class="k">Reviewed by</div>
+        <div class="v small">${esc(p.assigned_doctor || 'Not yet assigned')}</div>
+        <div class="s">${esc(p.assigned_facility || p.specialty_label || '')}</div>
+      </div>
+    </div>
+
+    ${portalDecision(p)}
+
+    ${p.report_text ? `<details class="preport">
+      <summary>${svg('doc')}The report you submitted</summary>
+      <pre>${esc(p.report_text)}</pre>
+    </details>` : ''}
+  </div>`;
+}
+
+function renderPortal(p) {
+  $('portal-body').innerHTML = p
+    ? portalCard(p)
+    : `<div class="card empty">${svg('info')}<strong>No case selected</strong>
+       <p>Enter a case ID above, or pick one from the list.</p></div>`;
+}
+
+function renderPortalList(rows) {
+  const el = $('portalList');
+  if (!rows.length) {
+    el.innerHTML = '<p class="psub">No open cases in the queue.</p>';
+    return;
+  }
+  el.innerHTML = `<div class="plist-label psub">Open cases</div>
+    <div class="plist">${rows.slice(0, 12).map(r => `
+      <button class="pchip" data-pid="${esc(r.id)}">
+        <span class="badge ${esc(r.severity)}">${esc(r.severity)}</span>
+        <span class="pn">#${esc(r.id)}</span>
+        <span class="pm">${esc(r.name)}</span>
+      </button>`).join('')}</div>`;
+  el.querySelectorAll('[data-pid]').forEach(b => b.addEventListener('click', () => {
+    $('portalId').value = b.dataset.pid;
+    loadPortal(b.dataset.pid);
+  }));
+}
+
+async function loadPortal(id) {
+  const el = $('portal-body');
+  // The case list comes from the internal queue because this is a staff-side
+  // console picking which record to inspect. Everything rendered *into* the
+  // patient card still comes only from the portal endpoint.
+  try {
+    if (!state.queue.patient_queue || !state.queue.patient_queue.length) await loadQueue();
+    renderPortalList(state.queue.patient_queue || []);
+  } catch (e) { /* the list is a convenience; a failure must not block lookup */ }
+
+  const want = id != null ? id : $('portalId').value;
+  if (!want) { renderPortal(null); return; }
+  el.innerHTML = `<div class="card empty">${svg('clock')}<strong>Loading case…</strong></div>`;
+  try {
+    renderPortal(await api('/patients/' + encodeURIComponent(want)));
+  } catch (e) {
+    el.innerHTML = `<div class="card empty">${svg('warn')}<strong>Could not load case #${esc(want)}</strong>
+      <p>${esc(e.message)}</p></div>`;
+  }
+}
+
+/* ============================================================
+   BEFORE / AFTER  (§12)
+
+   The plan calls this one of the strongest pitch visuals, so it is built from
+   the real flow rather than a diagram: every "after" step names the component
+   in this repo that performs it, and the counts on the left are the actual
+   queues a report has to pass through today.
+   ============================================================ */
+const BA_FLOW = {
+  before: [
+    ['Patient travels to the facility', 'Queue outside the OPD, waiting on foot.'],
+    ['Queue for a doctor', 'Position depends on who walked in, not on how sick anyone is.'],
+    ['Doctor writes a test order', 'Vitals and history repeated from scratch.'],
+    ['Queue again for the test', 'A second wait for the same complaint.'],
+    ['Report is produced', 'Handwritten, then read by eye, often misread.'],
+    ['Queue again for the report', 'A third wait, this time to interpret a page.'],
+    ['Doctor reads it', 'The first time the severity is actually assessed.'],
+    ['Possible specialist referral', 'And another queue, at another facility, another day.']
+  ],
+  after: [
+    ['Report arrives as text', 'A photo of a report, OCR errors and all, read as-is.'],
+    ['Model proposes a triage', 'Severity, specialty, red flags — as a proposal, not a verdict.'],
+    ['System verifies reality', 'Agents 2–4 check beds, stock and doctor rosters. Pure arithmetic.'],
+    ['Case enters one queue', 'Ordered by severity first, waiting time second.'],
+    ['The right doctor reviews it', 'Already assigned; no second queue for the same complaint.'],
+    ['One of three decisions', 'Remote review · come in · escalate to a senior consultant.'],
+    ['Resources committed only then', 'A bed is held because a doctor decided, never because a file arrived.'],
+    ['Patient is told the outcome', 'Position, wait and decision in the patient portal.']
+  ]
+};
+
+const BA_NOTES = [
+  ['One queue, not five', 'The old path makes a patient queue repeatedly for the same clinical question. Here the report carries the clinical content, so the only wait left is for a doctor\'s judgement.'],
+  ['Severity decides order, not arrival time', 'Priority is severity bands of 1000 / 500 / 100 plus a wait bonus capped at 300. The cap is strictly below the narrowest band gap, so no amount of waiting lets a mild case out-rank a critical one.'],
+  ['Waiting less does not mean being cleared less', 'A doctor still decides every case. The model\'s opinion is shown beside the case as advice and is never acted on by any code path.'],
+  ['A digital queue does not hoard beds', 'Assignment reserves a review slot only. ICU beds and medicine are committed at the moment a doctor chooses to admit, so scarce stock is not tied up by a file sitting in a queue.'],
+  ['An unreadable report is never auto-cleared', 'If the model is unavailable, slow or unsure, the case is held for a clinician with the reason shown. Failing open — marking a patient safe because triage did not run — is the failure mode that hurts.']
+];
+
+function renderCompare() {
+  $('baGrid').innerHTML = ['before', 'after'].map(side => `
+    <div class="ba-col ${side}">
+      <div class="ba-head">
+        <span class="chip ${side === 'before' ? 'bad' : 'ok'}">${side === 'before' ? 'Today' : 'AI Medical Queue'}</span>
+        <div class="ba-sub">${side === 'before'
+          ? 'Repeated physical queues for one report'
+          : 'One report, one queue, one doctor decision'}</div>
+      </div>
+      <ol class="ba-steps">
+        ${BA_FLOW[side].map(([t, d], i) => `
+          <li style="animation-delay:${i * 60}ms">
+            <span class="n">${i + 1}</span>
+            <span class="b"><b>${esc(t)}</b><span class="d">${esc(d)}</span></span>
+          </li>`).join('')}
+      </ol>
+      <div class="ba-foot">${side === 'before'
+        ? `${BA_FLOW.before.length} separate waits before anyone assesses severity`
+        : `${BA_FLOW.after.length} steps, and a report never consumes a bed`}</div>
+    </div>`).join('');
+
+  $('baNotes').innerHTML = `<div class="ba-note-grid">${BA_NOTES.map(([t, d]) => `
+    <div class="banote">
+      <b>${esc(t)}</b>
+      <p>${esc(d)}</p>
+    </div>`).join('')}</div>`;
+}
+
+/* ============================================================
    COMMAND CENTER
    ============================================================ */
 function sortRows(rows, cfg) {
@@ -1138,6 +1480,10 @@ function init() {
   $('qSearch').addEventListener('input', debounce(e => { state.query = e.target.value; renderQueue(); }, 140));
   $('qSearch').addEventListener('keydown', e => { if (e.key === 'Escape') { e.target.value = ''; state.query = ''; renderQueue(); } });
 
+  // patient portal
+  $('portalGo').addEventListener('click', () => loadPortal($('portalId').value));
+  $('portalId').addEventListener('keydown', e => { if (e.key === 'Enter') loadPortal(e.target.value); });
+
   // command
   $('refreshBtn').addEventListener('click', () => {
     state.countdown = state.autoSec || 15;
@@ -1159,13 +1505,13 @@ function init() {
     }
     if (typing) return;
     if (e.key === '/') { e.preventDefault(); switchTab('doctor'); setTimeout(() => $('qSearch').focus(), 60); return; }
-    const map = { '1': 'intake', '2': 'pipeline', '3': 'doctor', '4': 'command' };
+    const map = { '1': 'intake', '2': 'pipeline', '3': 'doctor', '4': 'portal', '5': 'compare', '6': 'command' };
     if (map[e.key]) switchTab(map[e.key]);
   });
 
   checkHealth();
-  // Warm the queues on boot so the Doctor Queue tab has content when opened.
-  // The backend seeds a demo backlog for exactly this reason.
+  // Warm the queues on boot so the Doctor Queue and Patient Portal tabs have
+  // content when opened. The backend seeds a demo backlog for exactly this.
   loadQueue();
   renderPipeline();
   setTimeout(updateRefreshNote, 1000);

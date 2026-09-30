@@ -30,7 +30,7 @@ Line references are `file:line` against the current tree.
                     (LLM)       (code)       (code)      ← only Agent 1 may call a model
                        │           │            │                   │
                     llm.py     data_store  data_store         agents/queue.py
-                     Groq      (beds,stock) (roster)         (3 ordered views)
+                     Gemini    (beds,stock) (roster)         (3 ordered views)
                                         │                        │
                                         │                        ▼
                                         │              doctor decides:
@@ -137,32 +137,44 @@ medicines  red_flags  confidence  reasoning
 | `confidence` | `0.0–1.0` float from the model | hardcoded `1.0` (`:38`) |
 | `reasoning` | free text, prompted to cite actual values (`llm.py:61-66`) | generated string (`:65`) |
 
-### Step 1b — inside the LLM call (`llm.py:125-198`)
+### Step 1b — inside the LLM call (`llm.py`)
 
 This is the only place in the codebase that talks to a model.
 
-- **Availability gate** — `llm.available()` (`llm.py:116`) is just
-  `bool(os.getenv("GROQ_API_KEY"))`. If unset, a `skipped` trace entry is
+- **Availability gate** — `llm.available()` is just
+  `bool(os.getenv("GOOGLE_API_KEY"))`. If unset, a `skipped` trace entry is
   recorded and `None` is returned immediately.
-- **Client** — `_client()` (`llm.py:120-122`) constructs `groq.Groq` with
-  `timeout=TIMEOUT`, `max_retries=0` (retries are handled by our own loop so
-  they are traceable).
-- **Request** (`llm.py:139-155`):
-  - `messages` = `[SYSTEM_PROMPT, "Lab report:\n\n" + report_text]`
-  - `SYSTEM_PROMPT` (`llm.py:36-69`) carries the severity rubric, the resource
-    rules, and explicit instructions to cite values and never invent them
+- **Client** — `_client()` constructs `google.genai.Client` from the key in the
+  environment. Attempts are additionally recorded by our own loop so every try
+  is traceable rather than hidden inside SDK internals.
+- **Schema** — `_gemini_schema()` derives `response_schema` from
+  `TriageResult.model_json_schema()` and rewrites it into the OpenAPI 3.0 subset
+  Gemini accepts: `$defs`/`$ref` resolved and inlined, `additionalProperties`
+  dropped, `title`/`default`/`format` noise stripped, and every object property
+  marked `required` (Gemini rejects optional properties). This is a
+  transport-level rewrite only — the validation boundary is still
+  `TriageResult.model_validate_json` on the way back.
+- **Request**:
+  - `contents` = the report text, with `SYSTEM_PROMPT` passed as
+    `system_instruction`
+  - `SYSTEM_PROMPT` carries the severity rubric, the resource rules, and
+    explicit instructions to cite values and never invent them
   - `temperature = 0.0` — deterministic decoding, this is classification
-  - `max_tokens = 900`
-  - `response_format = {type: "json_schema", strict: true, schema: SCHEMA}`
-- **Retry loop** (`llm.py:155-190`): `RETRIES + 1` attempts. Only
-  `RateLimitError` / `APIConnectionError` / `APIStatusError` / `APIError` are
-  retried, with `sleep(1.5 * (attempt+1))` between. A `pydantic.ValidationError`
-  is **not** retried — a second identical request produces the same violation.
-- **Trace** — every attempt records to `_trace` via `_record()` (`llm.py:111`):
-  status, model, latency, attempt number, token counts, and the parsed result.
+  - `max_output_tokens = LLM_MAX_TOKENS` (default 1024)
+  - `thinking_config = ThinkingConfig(budget_tokens=LLM_THINKING_BUDGET)` —
+    disabled by default so a 2.5 Flash call stays inside demo latency
+  - `response_mime_type = "application/json"` plus the generated
+    `response_schema`, so decoding is constrained at the model rather than
+    parsed out of prose
+- **Retry loop**: `LLM_RETRIES + 1` attempts. Only an SDK `APIError` (which
+  covers rate limit, timeout and 5xx) is retried, with a growing sleep between.
+  A `pydantic.ValidationError` is **not** retried — a second identical request
+  produces the same violation.
+- **Trace** — every attempt records to `_trace` via `_record()`: status, model,
+  latency, attempt number, finish reason, token counts, and the parsed result.
   This is what `GET /agents/llm-trace` serves and what the Pipeline tab renders.
 - **Return** — `TriageResult` on success, `None` on any failure. **Never
-  raises.** A demo that dies because an API is down is a bad demo (`llm.py:11`).
+  raises.** A demo that dies because an API is down is a bad demo.
 
 ### Step 2 — Resource Allocator (`agents/agent2_allocator.py:43-71`)
 

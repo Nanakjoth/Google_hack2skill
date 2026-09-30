@@ -130,6 +130,7 @@ def _queue_row(case: dict, position: int) -> dict:
         "red_flags": case.get("red_flags") or [],
         "ai_recommendation": case.get("ai_recommendation"),
         "triage_source": case.get("triage_source"),
+        "manual_review": bool(case.get("manual_review")),
         "confidence": case.get("confidence"),
         "decision": case.get("decision"),
         "escalated_from": case.get("escalated_from"),

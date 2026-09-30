@@ -34,8 +34,14 @@ if _origins_env.lower() != "none":
     )
 
 
-@app.get("/")
+@app.get("/healthz")
 def health():
+    """API + model configuration.
+
+    The root path is the UI, so health lives here. This is also what the
+    frontend's status pill calls, which means one URL serves both the console
+    and its own health check - no CORS, no second origin.
+    """
     return {
         "status": "ok",
         "service": "agentic-tele-triage-api",
@@ -80,6 +86,7 @@ def submit_patient(p: PatientIn):
         "doctor_specialty": doctor["specialty"] if doctor else None,
         "status": status,
         "triage_source": need["source"],
+        "manual_review": need["manual_review"],
         "confidence": need["confidence"],
         "red_flags": need["red_flags"],
         "ai_recommendation": {
@@ -376,6 +383,21 @@ def llm_trace():
     }
 
 
+# ---------------------------------------------------------------------------
+# The console is served from this same container, so a deployed judge needs one
+# URL rather than an API host plus a separately-hosted page. The mount is added
+# LAST on purpose: every route above is matched first, so /patients, /queue and
+# /docs keep working, and only genuinely unmatched paths fall through to the
+# filesystem.
+# ---------------------------------------------------------------------------
+_frontend = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend")
+if os.path.isdir(_frontend):
+    from fastapi.staticfiles import StaticFiles
+    app.mount("/", StaticFiles(directory=_frontend, html=True), name="console")
+
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Cloud Run injects PORT and expects the container to listen on 0.0.0.0.
+    # Locally PORT is unset, so this stays on 8000.
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")))

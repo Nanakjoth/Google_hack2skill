@@ -79,11 +79,21 @@ def _score(h: dict, need: dict, doctor: dict | None) -> tuple:
 
 
 def run(eligible: list, need: dict, patient_id: int | None = None):
+    # Computed up front so every exit path below can report it, including the
+    # ones that assign nobody. "We could not route this" is only a useful
+    # statement if it comes with the size of the pool that failed to cover it.
+    counts = _candidate_counts(eligible or [], need)
+
     if not eligible:
         step = {
             "title": "Agent 3 - Routing & Load Balancing",
-            "text": "No assignment made. Patient held in escalation queue for manual override.",
+            "text": (
+                f"No facility passed the physical-capacity check. "
+                f"{_count_sentence(counts)} "
+                "Patient held for manual override."
+            ),
             "source": "deterministic",
+            "candidates": counts,
         }
         return None, None, step, {}
 
@@ -102,8 +112,10 @@ def run(eligible: list, need: dict, patient_id: int | None = None):
         step = {
             "title": "Agent 3 - Routing & Load Balancing",
             "text": ("No facility has a free doctor in the required specialty "
-                     "right now. Case held for the next available slot."),
+                     f"right now. {_count_sentence(counts)} "
+                     "Case held for the next available slot."),
             "source": "deterministic",
+            "candidates": counts,
         }
         return None, None, step, {}
 
@@ -133,8 +145,10 @@ def run(eligible: list, need: dict, patient_id: int | None = None):
         step = {
             "title": "Agent 3 - Routing & Load Balancing",
             "text": ("No facility has a free doctor in the required specialty "
-                     "right now. Case held for the next available slot."),
+                     f"right now. {_count_sentence(counts)} "
+                     "Case held for the next available slot."),
             "source": "deterministic",
+            "candidates": counts,
         }
         return None, None, step, {}
 
@@ -146,8 +160,10 @@ def run(eligible: list, need: dict, patient_id: int | None = None):
         step = {
             "title": "Agent 3 - Routing & Load Balancing",
             "text": ("No facility has a free doctor in the required specialty "
-                     "right now. Case held for the next available slot."),
+                     f"right now. {_count_sentence(counts)} "
+                     "Case held for the next available slot."),
             "source": "deterministic",
+            "candidates": counts,
         }
         return None, None, step, {}
 
@@ -180,7 +196,7 @@ def run(eligible: list, need: dict, patient_id: int | None = None):
             "icu": 0,                       # committed later by commit()
             "medicines": {},                # committed later by commit()
             "committed": False,
-            "specialty": resolve_specialty(need.get("specialty")),
+            "specialty": resolve_specialty(need.get("specialist")),
         }
 
     # A review assignment IS workload, so the doctor's load goes up here even
@@ -200,15 +216,110 @@ def run(eligible: list, need: dict, patient_id: int | None = None):
             f'{doctor["load"]}/{doctor["capacity"]} case load. Score {best_score:.3f} '
             f'(proximity {best_breakdown["proximity"]}, capacity {best_breakdown["capacity"]}, '
             f'availability {best_breakdown["availability"]}). '
+            f"{_count_sentence(counts, doctor)} "
             f"No physical resources held until a doctor confirms the visit. "
             f"{runner_up}"
         ),
         "source": "deterministic",
         "score": round(best_score, 4),
         "breakdown": best_breakdown,
+        "candidates": counts,
         "reserved": reserved,
     }
     return best_hospital, doctor, step, best_breakdown
+
+
+def _count_sentence(counts: dict, doctor: dict | None = None) -> str:
+    """The plan's "7 possible doctors, 3 eligible, 1 selected", as prose.
+
+    `possible` counts every fitting doctor network-wide, `eligible` only those
+    at facilities that cleared Agent 2's physical check. The gap between the two
+    is the resource constraint stated in numbers rather than as a delay.
+
+    When the winner came from the general-medicine fallback the sentence says so
+    explicitly. Reporting "1 of 5 cardiologists selected" directly above a
+    general physician's name would be a contradiction the first reviewer
+    catches, and the count would then be decoration rather than evidence.
+    """
+    label = counts["specialty"].replace("_", " ")
+    if not counts["possible"]:
+        return (f"No {label} doctor is rostered anywhere in the network, so "
+                "there was nobody to route to.")
+
+    head = (f'{counts["possible"]} possible {label} doctor(s) network-wide, '
+            f'{counts["eligible"]} at a facility with the capacity for this '
+            f'case, {counts["available"]} free right now')
+
+    if doctor is not None and counts["specialty"] != "general_medicine" \
+            and doctor["specialty"] == "general_medicine":
+        return (f"{head}. 1 selected - a general duty doctor, since no "
+                f"{label} had free capacity at an eligible facility.")
+    return f"{head}. 1 selected."
+
+
+def _candidate_counts(eligible: list, need: dict) -> dict:
+    """How many doctors could have taken this case, and how many actually could.
+
+    The plan asks the demo to be able to say "7 possible doctors, 3 eligible,
+    1 selected" and then explain the rejections. Those numbers are only
+    meaningful if "possible" is computed by the same rule that picks the doctor,
+    so this reuses `doctors_of` rather than re-deriving the matching: a count
+    that disagreed with the selection would make the explanation worse than no
+    explanation.
+
+    `possible` is network-wide, ignoring load - every doctor whose specialty
+    fits, which is the number a patient would recognise as "how many doctors
+    could see me". `eligible` is restricted to facilities Agent 2 cleared on
+    physical capacity, so the gap between the two is the resource constraint
+    made visible. `available` narrows further to doctors with free capacity.
+
+    The general-medicine fallback is counted separately rather than folded into
+    `possible`. `_pick_doctor` will hand a case to a general duty doctor if the
+    requested specialty has nobody free, and reporting that as "1 of 5
+    cardiologists selected" when the winner was a general physician would make
+    the panel contradict the assignment sitting directly above it in the same
+    view. Agent 2 already refuses a facility whose specialist is fully booked, so
+    that fallback is not reachable through the pipeline today; it is counted
+    correctly anyway rather than assumed away.
+    """
+    specialty = resolve_specialty(need.get("specialist"))
+
+    def rosters(facilities: list):
+        """(exact-specialty roster, fallback roster) per facility."""
+        out = []
+        for h in facilities:
+            exact = doctors_of(h, specialty)
+            fallback = ([] if exact or specialty == "general_medicine"
+                        else doctors_of(h, "general_medicine"))
+            out.append((exact, fallback))
+        return out
+
+    def count(facilities: list) -> dict:
+        exact_n = exact_free = fallback_n = fallback_free = 0
+        for exact, fallback in rosters(facilities):
+            exact_n += len(exact)
+            exact_free += sum(1 for d in exact if d["load"] < d["capacity"])
+            fallback_n += len(fallback)
+            fallback_free += sum(1 for d in fallback if d["load"] < d["capacity"])
+        return {
+            "exact": exact_n, "exact_available": exact_free,
+            "fallback": fallback_n, "fallback_available": fallback_free,
+        }
+
+    net = count(hospitals)
+    elig = count(eligible)
+    return {
+        "specialty": specialty,
+        "possible": net["exact"] + net["fallback"],
+        "free_networkwide": net["exact_available"] + net["fallback_available"],
+        "exact_possible": net["exact"],
+        "exact_available": net["exact_available"],
+        "fallback_possible": net["fallback"],
+        "eligible": elig["exact"] + elig["fallback"],
+        "exact_eligible": elig["exact"],
+        "available": elig["exact_available"] + elig["fallback_available"],
+        "selected": 1,
+    }
 
 
 def _pick_doctor(hospital: dict, need: dict):

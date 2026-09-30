@@ -15,7 +15,8 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import data_store as ds
-from models import TriageResult
+import llm
+from models import MedicineKey, TriageResult
 from agents import agent1_triage, agent2_allocator, agent3_routing, agent4_forecast
 from eval import run_eval
 
@@ -84,6 +85,39 @@ def test_catalog_matches_llm_enum():
     assert set(ds.medicines_catalog) == set(MedicineKey.__args__)
 
 
+def test_prompt_file_is_the_prompt_actually_sent():
+    """The prompt must be a reviewable file, and it must be the one in use.
+
+    Two failure modes this pins down: someone edits the .md and forgets to wire
+    it up, or someone edits the string in llm.py and the .md goes stale. Either
+    way the artefact a reviewer reads stops describing the system.
+    """
+    import llm
+    from pathlib import Path
+
+    path = Path(llm.PROMPT_PATH)
+    assert path.is_file(), "prompts/triage_system.md must exist in the repo"
+    assert path.read_text(encoding="utf-8").strip() == llm.SYSTEM_PROMPT
+
+    # And it must still be a real instruction, not a stub someone emptied out.
+    assert len(llm.SYSTEM_PROMPT) > 500
+    for needed in ("SEVERITY RULES", "RESOURCE RULES", "RED FLAGS"):
+        assert needed in llm.SYSTEM_PROMPT, f"prompt lost its {needed} section"
+
+
+def test_prompt_medicine_keys_match_the_catalog():
+    """Every medicine the prompt tells the model to emit must actually be stocked.
+
+    The prompt is hand-written and the catalog is code, so this is the one place
+    that can drift. A key in the prompt that the catalog does not know would let
+    the model request a drug no facility can hold.
+    """
+    from models import MedicineKey
+
+    for key in MedicineKey.__args__:
+        assert key in llm.SYSTEM_PROMPT, f"{key} is stocked but absent from the prompt"
+
+
 def test_take_refuses_to_over_allocate():
     h = ds.by_id("h1")
     with pytest.raises(ValueError):
@@ -118,7 +152,10 @@ def test_llm_path_falls_back_when_model_unavailable(monkeypatch):
     need, step = agent1_triage.run("normal", report_text="Hb 3.0, platelets 8,000")
     # Never auto-cleared as Green on a failed read - that is the unsafe failure.
     assert need["severity"] != "Green"
-    assert need["source"] == "rules"
+    # A model failure is not a rules decision. Reporting "rules" here made the
+    # queue label a triage that never happened as a rule-based one.
+    assert need["source"] == "fallback"
+    assert need["manual_review"] is True
     assert step["source"] == "fallback"
 
 
@@ -146,12 +183,47 @@ def test_llm_path_used_when_model_returns(monkeypatch):
     assert step["recommendation"]["physical_visit"] is True
 
 
+def test_low_confidence_green_is_not_auto_cleared(monkeypatch):
+    """A Green the model is unsure about is the failure the fallback exists to
+    prevent, arriving by a different route: the model answered, it just was not
+    confident. The confidence floor closes that route."""
+    result = triage_result(severity="Green", confidence=0.2,
+                           red_flags=["Report partly illegible"])
+    monkeypatch.setattr(agent1_triage.llm, "triage_report", lambda t: result)
+    need, step = agent1_triage.run("normal", report_text="illegible")
+    assert need["manual_review"] is True
+    assert need["severity"] != "Green"
+    assert need["physical_visit"] is True, "unsure must not become 'no visit'"
+    assert any("confidence" in f.lower() for f in need["red_flags"])
+    assert step["manual_review"] is True
+
+
+def test_low_confidence_red_is_never_softened(monkeypatch):
+    """The floor guards against auto-clearing. It must never push in the other
+    direction - downgrading a Red because the model hedging is the one
+    adjustment that would be indefensible."""
+    result = triage_result(severity="Red", confidence=0.05, icu_needed=1,
+                           specialist="hematologist")
+    monkeypatch.setattr(agent1_triage.llm, "triage_report", lambda t: result)
+    need, _ = agent1_triage.run("normal", report_text="shock, platelets 8,000")
+    assert need["severity"] == "Red"
+    assert need["manual_review"] is True
+
+
+def test_confident_result_is_not_flagged(monkeypatch):
+    result = triage_result(severity="Yellow", confidence=0.91)
+    monkeypatch.setattr(agent1_triage.llm, "triage_report", lambda t: result)
+    need, _ = agent1_triage.run("normal", report_text="fever 3 days")
+    assert need["manual_review"] is False
+    assert need["red_flags"] == []
+
+
 def test_both_agent1_paths_share_one_shape():
     rules, _ = agent1_triage.run("cardiac")
     keys = set(rules)
     assert keys == {
-        "source", "severity", "label", "icu", "platelets", "specialist",
-        "medicines", "red_flags", "confidence", "reasoning",
+        "source", "manual_review", "severity", "label", "icu", "platelets",
+        "specialist", "medicines", "red_flags", "confidence", "reasoning",
         "physical_visit", "escalation", "recommended_action",
     }
 
@@ -290,6 +362,64 @@ def test_routing_loads_a_freed_doctor_only_after_release():
     peak = doctor["load"]
     agent3_routing.release(900)
     assert doctor["load"] == peak - 1
+
+
+def test_routing_reports_candidate_accounting():
+    """The plan wants the demo to be able to say "N possible doctors, M
+    eligible, 1 selected" and then justify the rejections. The counts only
+    count if they are derived from the same rule that picks the winner, so this
+    pins them against the roster rather than against a literal."""
+    need = {"icu": 0, "platelets": 0, "specialist": "cardiologist",
+            "medicines": {}}
+    eligible, _ = agent2_allocator.run(need)
+    _h, doctor, step, _ = agent3_routing.run(eligible, need)
+
+    c = step["candidates"]
+    rostered = sum(
+        len(ds.doctors_of(h, "cardiologist")) for h in ds.hospitals
+    ) + sum(
+        # facilities with no cardiologist fall back to a general duty doctor
+        len(ds.doctors_of(h, "general_medicine"))
+        for h in ds.hospitals if not ds.doctors_of(h, "cardiologist")
+    )
+    assert c["possible"] == rostered
+    assert c["selected"] == 1
+    assert c["eligible"] <= c["possible"]
+    assert c["available"] <= c["eligible"]
+    assert "possible cardiologist doctor(s)" in step["text"]
+    assert "1 selected" in step["text"]
+
+
+def test_candidate_sentence_admits_a_general_duty_fallback():
+    """Regression on a contradiction the count could produce: naming a
+    specialty in the tally while the winner is a general duty doctor.
+
+    Reached through `_count_sentence` rather than end-to-end on purpose. Agent 2
+    already refuses a facility whose specialist is fully booked
+    (agent2_allocator._evaluate), so a case that clears Agent 2 always has a free
+    specialist somewhere and `_pick_doctor` never takes the general-medicine
+    fallback. The guard is defence in depth for a path the pipeline does not
+    currently exercise, and a test that pretended otherwise would break the
+    moment someone made Agent 2's eligibility looser.
+    """
+    counts = {"specialty": "cardiologist", "possible": 5, "eligible": 3,
+              "available": 3, "exact_possible": 5, "fallback_possible": 0}
+    sentence = agent3_routing._count_sentence(
+        counts, {"specialty": "general_medicine", "name": "Dr. Prakash"})
+    assert "general duty doctor" in sentence
+    assert "cardiologist" in sentence
+    # And the normal case does not claim a fallback that did not happen.
+    plain = agent3_routing._count_sentence(
+        counts, {"specialty": "cardiologist", "name": "Dr. Rao"})
+    assert "general duty doctor" not in plain
+    assert plain.endswith("1 selected.")
+
+
+def test_candidate_sentence_reports_an_unstaffed_specialty():
+    counts = {"specialty": "hematologist", "possible": 0, "eligible": 0,
+              "available": 0, "exact_possible": 0, "fallback_possible": 0}
+    out = agent3_routing._count_sentence(counts, None)
+    assert "nobody to route to" in out
 
 
 def test_routing_does_not_consume_resources_until_a_doctor_decides():
@@ -537,23 +667,35 @@ def test_redistribute_validates_its_inputs():
 # ------------------------------------------------------------------- llm
 def test_llm_returns_none_without_api_key(monkeypatch):
     import llm
-    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     assert llm.available() is False
     assert llm.triage_report("anything") is None
 
 
-def test_generated_schema_is_strict_mode_clean():
-    """Strict structured output rejects any object node lacking
-    additionalProperties:false or an incomplete `required` list."""
+def test_generated_schema_is_accepted_by_the_model_provider():
+    """The schema handed to the model must satisfy the provider's own contract.
+
+    Gemini's response_schema is an OpenAPI 3.0 subset, not JSON Schema: it
+    rejects `$defs`/`$ref` and `additionalProperties` outright with a 400. So
+    this asserts the schema the SDK actually accepts, and that the rewrite
+    which makes it acceptable did not quietly widen the model's vocabulary -
+    the nested MedicineOrder enum has to survive being inlined, or the model
+    could name any drug it liked.
+    """
+    from google.genai import types
+
     schema = llm_schema()
+    types.Schema.model_validate(schema)          # hard 400 at runtime if wrong
+
     problems = []
 
     def walk(node, path):
         if isinstance(node, dict):
+            for banned in ("$ref", "$defs", "additionalProperties"):
+                if banned in node:
+                    problems.append(f"{banned} at {path}")
             if node.get("type") == "object" and "properties" in node:
-                if node.get("additionalProperties") is not False:
-                    problems.append(f"open object at {path}")
-                if set(node.get("required", [])) != set(node["properties"]):
+                if not set(node.get("required", [])) >= set(node["properties"]):
                     problems.append(f"incomplete required at {path}")
             for k, v in node.items():
                 walk(v, f"{path}.{k}")
@@ -563,6 +705,22 @@ def test_generated_schema_is_strict_mode_clean():
 
     walk(schema, "root")
     assert not problems, problems
+
+    # The inlined nested model kept its closed vocabulary.
+    order = schema["properties"]["medicines"]["items"]
+    assert set(order["properties"]["medicine"]["enum"]) == set(
+        MedicineKey.__args__)
+
+
+def test_schema_rewrite_inlines_nested_models():
+    """Regression on the rewrite itself: a nested model that stays behind a
+    $ref would be dropped from the request entirely, and the model would then
+    be free to invent medicine names - the exact failure MedicineKey exists to
+    prevent."""
+    raw = TriageResult.model_json_schema()
+    assert "MedicineOrder" in raw.get("$defs", {}), "fixture no longer nests"
+    schema = llm_schema()
+    assert "properties" in schema["properties"]["medicines"]["items"]
 
 
 def llm_schema():
@@ -640,10 +798,95 @@ def test_eval_harness_aggregation(monkeypatch):
     assert res["confusion"]["Green"]["Yellow"] == 1     # over-triage, not under
     assert res["confusion"]["Yellow"]["ERROR"] == 1
     assert res["llm"]["under_triage_count"] == 0
+    assert res["llm"]["over_triage_count"] == 1
     assert res["by_noise"]["clean"]["n"] == 2
     assert res["by_noise"]["ocr"]["n"] == 1
     assert res["tokens"]["prompt"] == 200               # error call logged no tokens
     assert res["est_cost_usd"] > 0
+
+
+def test_eval_measures_routing_not_just_severity(monkeypatch):
+    """§18 asks for correct/wrong routing, which severity accuracy cannot see.
+
+    This is the case that justifies the metric existing: the model gets the
+    severity right on every report and still sends two of the three to a doctor
+    who cannot take them. A harness that only scored severity would report 100%
+    and miss the failure that actually matters operationally.
+    """
+    reports = [
+        {"id": "a", "template": "t", "expected_severity": "Yellow", "noise": "clean",
+         "expected_specialist": "hematologist", "report_text": "low platelets"},
+        {"id": "b", "template": "t", "expected_severity": "Yellow", "noise": "clean",
+         "expected_specialist": "pediatrician", "report_text": "child, febrile"},
+        {"id": "c", "template": "t", "expected_severity": "Yellow", "noise": "clean",
+         "expected_specialist": "none", "report_text": "stable"},
+    ]
+
+    def fake(text):
+        # Severity is right every time. The specialty is not.
+        return triage_result(severity="Yellow", case_label="x", specialist="none",
+                             confidence=0.9, reasoning="r",
+                             physical_visit_recommended=True)
+
+    monkeypatch.setattr(run_eval.llm, "triage_report", fake)
+    res = run_eval.evaluate(reports)
+
+    assert res["llm"]["accuracy"] == 1.0, "severity alone looks perfect"
+    rt = res["routing"]
+    assert rt["scored"] == 3
+    assert rt["wrong"] == 2
+    assert rt["correct"] == 1
+    assert rt["accuracy"] == pytest.approx(1 / 3, abs=1e-3)
+    assert any("hematologist->" in m for m in rt["misrouted"])
+
+
+def test_eval_reports_manual_review_rate(monkeypatch):
+    """§18's manual-review rate, counted against the production confidence
+    floor rather than a number invented by the harness."""
+    reports = [
+        {"id": "a", "template": "t", "expected_severity": "Green", "noise": "clean",
+         "expected_specialist": "none", "report_text": "clear"},
+        {"id": "b", "template": "t", "expected_severity": "Green", "noise": "clean",
+         "expected_specialist": "none", "report_text": "murky"},
+    ]
+    conf = iter([0.95, 0.10])
+
+    def fake(text):
+        return triage_result(severity="Green", case_label="x",
+                             confidence=next(conf), reasoning="r")
+
+    monkeypatch.setattr(run_eval.llm, "triage_report", fake)
+    res = run_eval.evaluate(reports)
+    assert res["manual_review"]["count"] == 1
+    assert res["manual_review"]["rate"] == 0.5
+    assert res["manual_review"]["threshold"] == agent1_triage.MIN_CONFIDENCE
+    # And the unreadable case counts too - it is the same outcome, reached by
+    # the other route.
+    assert res["routing"]["unreadable"] == 0
+
+
+def test_eval_routing_does_not_leak_doctor_load(monkeypatch):
+    """Agent 3 increments doctor load when it assigns. The harness runs it once
+    per report, so without a reset report 1's assignment would make report 2
+    look like a capacity failure - and the routing accuracy would drift with
+    position in the run instead of measuring the model."""
+    reports = [{"id": f"r{i}", "template": "t", "expected_severity": "Yellow",
+                "noise": "clean", "expected_specialist": "none",
+                "report_text": "stable"} for i in range(6)]
+
+    def fake(text):
+        return triage_result(severity="Yellow", case_label="x", specialist="none",
+                             confidence=0.9, reasoning="r",
+                             physical_visit_recommended=True)
+
+    before = {d["name"]: d["load"] for h in ds.hospitals for d in h["doctors"]}
+    monkeypatch.setattr(run_eval.llm, "triage_report", fake)
+    res = run_eval.evaluate(reports)
+    after = {d["name"]: d["load"] for h in ds.hospitals for d in h["doctors"]}
+
+    assert before == after, "harness mutated global doctor load"
+    assert res["routing"]["unassigned"] == 0, "later reports starved by earlier ones"
+    assert res["routing"]["accuracy"] == 1.0
 
 
 def test_under_triage_is_counted(monkeypatch):

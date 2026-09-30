@@ -10,16 +10,22 @@ Design rules this module exists to enforce:
   3. Every failure degrades to `None` and the caller falls back to the
      rule-based path. A demo that dies because an API is down is a bad demo.
 
+Provider is Google AI Studio (Gemini), chosen through configuration so it can
+be swapped without touching the pipeline - see DECISIONS.md.
+
 CONFIG (env vars, never hardcoded):
-  GROQ_API_KEY    required for the LLM path
-  LLM_MODEL       default llama-3.3-70b-versatile
-  LLM_TIMEOUT     seconds, default 20
-  LLM_RETRIES     default 2
+  GOOGLE_API_KEY     required for the LLM path
+  LLM_MODEL          default gemini-2.5-flash
+  LLM_TIMEOUT        seconds, default 30
+  LLM_RETRIES        default 2
+  LLM_THINKING_BUDGET  tokens of reasoning, default 0 (off)
+  LLM_MAX_TOKENS     output cap, default 1024
 """
 
 import os
 import time
-from typing import Optional
+from pathlib import Path
+from typing import Any, Optional
 
 from dotenv import load_dotenv
 
@@ -29,91 +35,81 @@ from models import TriageResult
 # win over the file, so this does not override a real deployment's config.
 load_dotenv()
 
-MODEL = os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")
-TIMEOUT = float(os.getenv("LLM_TIMEOUT", "20"))
+MODEL = os.getenv("LLM_MODEL", "gemini-2.5-flash")
+TIMEOUT = float(os.getenv("LLM_TIMEOUT", "30"))
 RETRIES = int(os.getenv("LLM_RETRIES", "2"))
+THINKING_BUDGET = int(os.getenv("LLM_THINKING_BUDGET", "0"))
+MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "1024"))
 
-SYSTEM_PROMPT = """You are a clinical triage assistant for a rural Indian public health system.
+# Approximate Gemini per-1M-token rates (USD) used by the eval cost estimate.
+# Check current pricing and update these if the model changes.
+IN_COST = float(os.getenv("LLM_IN_COST", "0.30"))
+OUT_COST = float(os.getenv("LLM_OUT_COST", "2.50"))
 
-You receive raw, often badly OCR'd or hand-typed lab reports and must convert
-them into a structured triage decision.
+PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "triage_system.md"
 
-SEVERITY RULES (follow exactly):
-- Red:    shock, severe dengue (platelets <20k/uL with bleeding or haematocrit
-          rise), acute coronary syndrome, stroke, sepsis, severe anaemia
-          (Hb <7 g/dL), any airway compromise, GCS <13.
-- Yellow: moderate dengue (platelets 20k-50k), pneumonia without shock,
-          significant fever with dehydration, Hb 7-11 g/dL.
-- Green:  routine fever, viral illness, stable vitals, mild anaemia
-          (Hb >11), normal platelets.
-
-RESOURCE RULES:
-- icu_needed: 1 only for Red cases needing critical care. 0 otherwise.
-- platelets_needed: 5 for severe dengue, 2 for moderate dengue, 0 otherwise.
-  Only set this if platelets are actually abnormal in the report.
-- specialist: 'hematologist' for dengue/platelet/bleeding, 'cardiologist' for
-  cardiac, 'pediatrician' if the patient is a child, otherwise 'none'.
-- medicines: a list of {medicine, qty} pairs. Only these exact keys are
-  valid: paracetamol, oral_rehydration, doxycycline, ceftriaxone,
-  platelet_concentrate, ringer_lactate, insulin_glargine, aspirin,
-  streptokinase. Use an empty list if no drugs are needed.
-
-RULES FOR THE `reasoning` FIELD:
-- Cite the specific abnormal values you keyed off, with units.
-- Explain the severity choice, do not just restate it.
-- If the report is unreadable or clinically meaningless, say so and
-  return severity 'Yellow' with a red_flag noting insufficient data.
-- Never invent values that are not present in the report.
-
-QUEUE RECOMMENDATIONS (these guide a human doctor, they do not decide):
-- physical_visit_recommended: true when the patient needs to be examined in
-  person - needs monitoring, an exam, a procedure, or has warning signs that
-  cannot be judged from a report alone. false when the report is plausibly
-  manageable remotely with oral advice and a review date.
-- specialist_escalation_recommended: true when this is beyond routine scope
-  for a general duty doctor and warrants senior specialty review. Use it for
-  severe dengue with plasma leak, STEMI, stroke, sepsis, severe anaemia, and
-  any child in a serious condition. Use false for the same severity when the
-  presentation is straightforward for the specialty.
-- recommended_action: one short phrase naming the concrete next step and its
-  timeframe, e.g. 'Senior cardiology review within 24h'.
-
-You are NOT diagnosing the patient and NOT deciding treatment. You are
-prioritising and routing a report to the right doctor. Never claim a bed,
-doctor, or medicine is available - you have no visibility into the network.
-
-Output must match the provided JSON schema exactly."""
+# The prompt lives in a file so it can be reviewed and diffed by someone who
+# does not read Python. It is read once at import. A missing or empty file is a
+# hard failure on purpose: a silently empty system instruction would still pass
+# the schema-constrained call and return a confidently wrong triage.
+SYSTEM_PROMPT = PROMPT_PATH.read_text(encoding="utf-8").strip()
+if not SYSTEM_PROMPT:
+    raise RuntimeError(f"prompt file is empty: {PROMPT_PATH}")
 
 
-def _close(node) -> None:
-    """Recursively make a JSON Schema strict-mode compatible.
-
-    Strict structured output requires EVERY object node - including ones
-    nested under `$defs`, which Pydantic emits for reused models - to declare
-    `additionalProperties: false` and list all of its properties as required.
-    Missing either one is a hard 400 from the API, not a soft warning.
-    """
-    if isinstance(node, dict):
-        if node.get("type") == "object" and "properties" in node:
-            node["additionalProperties"] = False
-            node["required"] = list(node["properties"].keys())
-        for value in node.values():
-            _close(value)
-    elif isinstance(node, list):
-        for value in node:
-            _close(value)
+# Gemini's response_schema is a subset of OpenAPI 3.0, not JSON Schema. It
+# rejects the two constructs Pydantic emits for nested models and that the
+# Groq path relied on:
+#   * `$defs` / `$ref` - Gemini wants the nested object inlined.
+#   * `additionalProperties` - not in the OpenAPI subset, a hard 400.
+# Pydantic also adds `title` and `default` noise that constrains nothing here.
+# So the schema is rewritten rather than handed over as-is. The rewrite only
+# changes the *transport* representation: the validation boundary is still
+# `TriageResult.model_validate_json` on the way back, which is the check that
+# actually matters.
+_UNSUPPORTED = frozenset({
+    "additionalProperties", "$defs", "title", "default", "format", "examples",
+})
 
 
-def _strict_schema() -> dict:
-    """Pydantic schema -> strict JSON Schema (see _close for the rules)."""
-    schema = TriageResult.model_json_schema()
-    _close(schema)
-    for prop in schema.get("properties", {}).values():
-        prop.pop("default", None)
+def _inline(node: Any, defs: dict) -> Any:
+    """Recursively resolve `$ref` into the node itself and drop unsupported keys."""
+    if isinstance(node, list):
+        return [_inline(v, defs) for v in node]
+    if not isinstance(node, dict):
+        return node
+    if "$ref" in node:
+        # A `$ref` node is a pure pointer; siblings alongside it are ignored
+        # per JSON Schema, so replace the whole node rather than merging.
+        return _inline(defs[node["$ref"].split("/")[-1]], defs)
+    out = {
+        k: _inline(v, defs)
+        for k, v in node.items()
+        if k not in _UNSUPPORTED
+    }
+    # Pydantic omits defaulted fields from `required`, which would let the model
+    # skip `red_flags` and `medicines` and have the omission silently become an
+    # empty list. "No drugs needed" and "the model did not say" are different
+    # clinical statements, so every property is made mandatory here. Validation
+    # on the way back still supplies the default if a response is ever missing
+    # one - this closes the gap rather than replacing the check.
+    if out.get("type") == "object" and "properties" in out:
+        out["required"] = list(out["properties"].keys())
+    return out
+
+
+def _gemini_schema() -> dict:
+    """TriageResult's Pydantic schema in the shape Gemini accepts."""
+    raw = TriageResult.model_json_schema()
+    defs = raw.get("$defs", {})
+    schema = _inline({k: v for k, v in raw.items() if k != "$defs"}, defs)
+    # The model does not need Agent 1's docstring - it is a note to maintainers
+    # about the trust boundary, and spending prompt tokens on it is waste.
+    schema.pop("description", None)
     return schema
 
 
-SCHEMA = _strict_schema()
+SCHEMA = _gemini_schema()
 
 # Rolling trace of the last N model calls, surfaced in the Pipeline tab so the
 # UI shows a real trace instead of a hardcoded string.
@@ -131,12 +127,22 @@ def _record(entry: dict) -> None:
 
 
 def available() -> bool:
-    return bool(os.getenv("GROQ_API_KEY"))
+    return bool(os.getenv("GOOGLE_API_KEY"))
 
 
 def _client():
-    from groq import Groq
-    return Groq(api_key=os.environ["GROQ_API_KEY"], timeout=TIMEOUT, max_retries=0)
+    from google import genai
+    return genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
+
+
+def _finish_reason(resp) -> str:
+    """Why generation stopped. Truncation matters: a response cut off
+    mid-JSON fails schema validation, and the fallback then reads as
+    "the model is broken" rather than "the budget was too small"."""
+    try:
+        return str(resp.candidates[0].finish_reason or "STOP").split(".")[-1]
+    except (AttributeError, IndexError):
+        return "STOP"
 
 
 def triage_report(report_text: str) -> Optional[TriageResult]:
@@ -147,52 +153,64 @@ def triage_report(report_text: str) -> Optional[TriageResult]:
     path. Never raises.
     """
     if not available():
-        _record({"status": "skipped", "reason": "GROQ_API_KEY not set",
+        _record({"status": "skipped", "reason": "GOOGLE_API_KEY not set",
                  "model": MODEL, "latency_ms": 0})
         return None
 
-    from groq import APIError, APIConnectionError, APIStatusError, RateLimitError
+    from google.genai import types
+    from google.genai.errors import APIError
 
-    request = {
-        "model": MODEL,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": f"Lab report:\n\n{report_text}"},
-        ],
-        "temperature": 0.0,
-        "max_tokens": 900,
-        "response_format": {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "triage_result",
-                "schema": SCHEMA,
-                "strict": True,
-            },
-        },
-    }
+    config = types.GenerateContentConfig(
+        system_instruction=SYSTEM_PROMPT,
+        temperature=0.0,
+        max_output_tokens=MAX_TOKENS,
+        response_mime_type="application/json",
+        response_schema=SCHEMA,
+        # Thinking is off by default. The severity rules are stated explicitly
+        # in the prompt, so this is extraction rather than inference, and a
+        # reasoning pass would spend most of MAX_TOKENS before emitting any
+        # JSON. Raise LLM_THINKING_BUDGET if hard reports need more reasoning
+        # - and raise LLM_MAX_TOKENS with it, or the JSON gets truncated.
+        thinking_config=types.ThinkingConfig(thinking_budget=THINKING_BUDGET),
+    )
 
+    last = "unknown error"
     for attempt in range(RETRIES + 1):
         started = time.perf_counter()
         try:
-            resp = _client().chat.completions.create(**request)
-            raw = resp.choices[0].message.content
+            resp = _client().models.generate_content(
+                model=MODEL,
+                contents=f"Lab report:\n\n{report_text}",
+                config=config,
+            )
+
+            reason = _finish_reason(resp)
+            raw = resp.text
+            if not raw:
+                raise ValueError(
+                    f"empty response (finish_reason={reason}"
+                    f"{', check LLM_MAX_TOKENS' if reason == 'MAX_TOKENS' else ''})"
+                )
             result = TriageResult.model_validate_json(raw)
 
-            usage = resp.usage
+            usage = getattr(resp, "usage_metadata", None)
             _record({
                 "status": "ok",
-                "model": resp.model,
+                "model": MODEL,
                 "latency_ms": round((time.perf_counter() - started) * 1000),
                 "attempt": attempt + 1,
                 "tokens": {
-                    "prompt": getattr(usage, "prompt_tokens", None),
-                    "completion": getattr(usage, "completion_tokens", None),
+                    "prompt": getattr(usage, "prompt_token_count", None),
+                    "completion": getattr(usage, "candidates_token_count", None),
                 },
                 "result": result.model_dump(),
             })
             return result
 
-        except (RateLimitError, APIConnectionError, APIStatusError, APIError) as e:
+        except APIError as e:
+            # Rate limits and 5xx are worth another attempt. A 400 (bad schema,
+            # bad key) will fail identically every time, but retrying it is
+            # cheap and keeps this branch simple.
             last = f"{type(e).__name__}: {e}"
             if attempt < RETRIES:
                 time.sleep(1.5 * (attempt + 1))

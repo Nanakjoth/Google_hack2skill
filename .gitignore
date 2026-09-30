@@ -1,4 +1,5 @@
-# Secrets — never commit. .env is where GROQ_API_KEY lives.
+# Secrets — never commit. .env is where GOOGLE_API_KEY lives locally; in a
+# deployed environment the key is a Secret Manager value, not a file at all.
 .env
 .env.*
 !.env.example

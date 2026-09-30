@@ -19,15 +19,29 @@ figures are requests, not facts - Agent 2 verifies them against real stock
 before anything is reserved.
 """
 
+import os
+
 import llm
 from data_store import case_types, medicines_catalog
 
 _SPECIALIST_NONE = "none"
 
+# A model that is less than this sure about a triage has not earned the right to
+# auto-clear a patient. Below the floor the case is held for a clinician, which
+# is the same conservative direction the unavailable-model fallback takes. Set to
+# 0 to disable the gate. The prompt already asks for a low-confidence report to
+# come back flagged (llm.py SYSTEM_PROMPT); this is the code that makes it
+# binding rather than a hope.
+MIN_CONFIDENCE = float(os.getenv("MIN_TRIAGE_CONFIDENCE", "0.5"))
+
 
 def _need(**kw) -> dict:
     base = {
         "source": "rules",
+        # True when the case must not be auto-dispositioned on the model's word
+        # alone. The doctor queue surfaces this; it never changes severity by
+        # itself, it only forces the case to stay visible for human review.
+        "manual_review": False,
         "severity": "Green",
         "label": "Unknown",
         "icu": 0,
@@ -87,6 +101,26 @@ def from_report(report_text: str):
         need, step = _fallback_step(report_text)
         return need, step
 
+    # §8 rule 10 / §17: an unclear report is held for a human, never
+    # auto-cleared. The prompt asks for this; a confidence floor enforces it, so
+    # a model that is unsure-but-confident cannot quietly discharge a patient.
+    # Severity is never softened here - downgrading a Red would be the one
+    # unacceptable direction - but a Green the model is not sure about is not
+    # allowed to stand as Green.
+    unsure = result.confidence < MIN_CONFIDENCE
+    if unsure and result.severity == "Green":
+        result = result.model_copy(update={"severity": "Yellow"})
+    if unsure:
+        result = result.model_copy(update={
+            # Same reasoning as the unavailable-model fallback: "we are not
+            # sure" must never be shown to a doctor as "no visit needed".
+            "physical_visit_recommended": True,
+            "red_flags": list(result.red_flags) + [
+                f"Low model confidence ({result.confidence:.2f}) - "
+                "held for clinician review rather than auto-cleared"
+            ],
+        })
+
     meds = result.medicine_map()
     if result.platelets_needed:
         meds["platelet_concentrate"] = max(
@@ -95,6 +129,7 @@ def from_report(report_text: str):
 
     need = _need(
         source="llm",
+        manual_review=unsure,
         severity=result.severity,
         label=result.case_label,
         icu=result.icu_needed,
@@ -115,6 +150,8 @@ def _fallback_step(report_text: str):
     """Model unavailable. Route conservatively: a report we could not read is
     never auto-cleared as Green, because that is the failure mode that hurts."""
     need = _need(
+        source="fallback",
+        manual_review=True,
         severity="Yellow",
         label="Unclassified report - needs clinician review",
         icu=0,
@@ -160,8 +197,9 @@ def _rule_step(need: dict) -> dict:
     )
     return {
         "title": "Agent 1 - Clinical Triage",
-        "text": text,
-        "source": "rules",
+        "text": need["reasoning"],
+        "source": "fallback",
+        "manual_review": True,
         "model": None,
         "recommendation": {
             "physical_visit": need["physical_visit"],
@@ -185,11 +223,14 @@ def _llm_step(need: dict) -> dict:
         + f' In-person review recommended: {"yes" if need["physical_visit"] else "no"};'
         f' senior specialist review recommended: {"yes" if need["escalation"] else "no"}.'
         + flags
+        + (" Held for clinician review: model confidence below the floor."
+           if need["manual_review"] else "")
     )
     return {
         "title": "Agent 1 - Clinical Triage",
         "text": text,
         "source": "llm",
+        "manual_review": need["manual_review"],
         "model": call.get("model"),
         "latency_ms": call.get("latency_ms"),
         "tokens": call.get("tokens"),

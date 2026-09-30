@@ -26,7 +26,7 @@ Attribution is explicit:
 
 ### D-01 — Only Agent 1 may call a model; Agents 2–4 are deterministic
 
-**Decision.** `llm.py` is the only module that imports `groq`. Agents 2, 3 and
+**Decision.** `llm.py` is the only module that imports the Google Gen AI SDK. Agents 2, 3 and
 4 are arithmetic over `data_store` state.
 
 **Why.** Whether a hospital has a free bed or enough platelets is a fact about
@@ -666,7 +666,7 @@ behaviour to suit a UI would have invalidated that signal.
 These are not oversights. Each needs a decision that requires information or
 authority this repo does not have.
 
-- **Model accuracy is unmeasured.** No `GROQ_API_KEY` in this environment, so
+- **Model accuracy is unmeasured.** No `GOOGLE_API_KEY` in this environment, so
   the harness has never been run. Any claim about triage accuracy is currently
   unsupported. (`README.md:125-126`)
 - **Concurrent writes are unsafe.** `_next_id` and Agent 3's read-modify-write
@@ -882,7 +882,7 @@ while keeping the injection point.
 - **Reservations are never auto-expired.** An admitted patient who is never
   discharged holds their bed for the life of the process. `outstanding()`
   exists to support a reaper; nothing calls it.
-- **The LLM path is unexercised here** (no `GROQ_API_KEY` in this
+- **The LLM path is unexercised here** (no `GOOGLE_API_KEY` in this
   environment). The three recommendation fields are schema-constrained and
   unit-tested, but no live model has been asked to produce them.
 

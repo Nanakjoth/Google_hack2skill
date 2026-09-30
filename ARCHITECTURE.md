@@ -68,15 +68,15 @@ decision trail, so a human can audit every number the system produced.
 │                                                                        │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
 │  │ MODEL ACCESS  llm.py   ← the ONLY outbound network dependency     │  │
-│  │   Groq · strict JSON schema · retry · trace ring buffer           │  │
+│  │   Gemini · response_schema · retry · trace ring buffer             │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Outbound dependencies, exhaustively:** Groq (only from `llm.py`), and nothing
-else. No database, no cache, no queue, no object store, no external auth
-provider. Everything the system knows lives in one process's memory and dies
-with it.
+**Outbound dependencies, exhaustively:** the Gemini API (only from `llm.py`),
+and nothing else. No database, no cache, no queue, no object store, no
+external auth provider. Everything the system knows lives in one process's
+memory and dies with it.
 
 ---
 
@@ -91,7 +91,7 @@ backwards is a design error, not a style preference.
 | **L3 Agents** | `agents/agent1..4` | L2, L1 | import `main`, import each other's state |
 | **L2 Access** | `llm.py`, `models.py` | L1, L0 | import agents |
 | **L1 State** | `data_store.py` | L0 | import agents, `llm`, or `main` |
-| **L0 Primitives** | `pydantic`, `pandas`, `groq`, `re`, `json` | — | — |
+| **L0 Primitives** | `pydantic`, `pandas`, `google-genai`, `re`, `json` | — | — |
 
 Verified import graph (`grep` over `agents/*.py`):
 
@@ -135,10 +135,11 @@ This is the architecture. Everything else is in service of it.
    UNTRUSTED                          BOUNDARY                    TRUSTED
    ─────────                          ────────                    ───────
 
-   report text  ──►  Groq (llama-3.3)  ──►  response_format:        TriageResult
-   phone photo       a probabilistic       {type: json_schema,       (pydantic)
-   OCR noise         function we do        strict: true,
-                     not control                              │
+   report text  ──►  Gemini 2.5 Flash  ─►  response_schema:         TriageResult
+   phone photo       a probabilistic       an OpenAPI-3.0 subset     (pydantic)
+   OCR noise         function we do        derived from the model,
+                     not control           $defs inlined, every
+                                               property required  │
                                                                ▼
                                                     need  ──►  Agents 2,3,4
                                           (fixed 10-key dict)       arithmetic over
@@ -148,8 +149,9 @@ This is the architecture. Everything else is in service of it.
 Three mechanisms, each closing a distinct failure mode:
 
 1. **Constrained decoding, not parsing.** The response schema is *generated from*
-   `TriageResult` (`llm.py:90-99`) and forced into strict mode by `_close()`
-   (`llm.py:71-87`). The model cannot emit a field the pipeline does not
+   `TriageResult` and rewritten into the OpenAPI 3.0 subset Gemini accepts
+   (`$defs`/`$ref` inlined, `additionalProperties` dropped, every property marked
+   required). The model cannot emit a field the pipeline does not
    understand, and cannot name a drug outside the 9-key `MedicineKey` `Literal`
    (`models.py:11-21`). A hallucinated medicine is a decode-time schema
    violation, not a `KeyError` three agents later.
@@ -365,7 +367,7 @@ Client ──► main.py:39   validate PatientIn
         ──► main.py:46   agent1.run(case_type, report_text)
         │                    report_text non-blank ──► llm.triage_report()
         │                                                   │
-        │                          Groq, strict schema ◄────┘
+        │                    Gemini, response_schema ◄────┘
         │                          ├─ TriageResult ──► need(source="llm")
         │                          └─ None ──────────► need(Yellow, conf 0.0)   ← never Green
         │                    report_text blank ──────► need(source="rules")
@@ -488,9 +490,9 @@ degradation path in the pipeline.
 
 | Failure | Detected at | Behaviour | Test |
 |---|---|---|---|
-| No `GROQ_API_KEY` | `llm.py:132` | `skipped` trace entry → `None` → Yellow fallback | `test_llm_returns_none_without_api_key` |
-| Rate limit / timeout / 5xx | `llm.py:178` | retry up to `LLM_RETRIES` with linear backoff → `None` | — |
-| Schema violation | `llm.py:162` | `ValidationError`, **not** retried (same input, same violation) → `None` | `test_generated_schema_is_strict_mode_clean` |
+| No `GOOGLE_API_KEY` | `llm.py` `_key()` | `skipped` trace entry → `None` → Yellow fallback | `test_llm_returns_none_without_api_key` |
+| Rate limit / timeout / 5xx | `llm.py` retry loop | retry up to `LLM_RETRIES` with linear backoff → `None` | — |
+| Schema violation | `TriageResult.model_validate_json` | `ValidationError`, **not** retried (same input, same violation) → `None` | `test_generated_schema_is_accepted_by_the_model_provider` |
 | Catalog ↔ enum drift | `data_store.py:51` | `RuntimeError` at import — the process does not start | `test_catalog_matches_llm_enum` |
 | Over-allocation | `data_store.py:111` | `ValueError`, no silent clamp | `test_take_refuses_to_over_allocate` |
 | Unknown `case_type` | `agent1_triage.py:48` | `ValueError` → HTTP 422 | — |

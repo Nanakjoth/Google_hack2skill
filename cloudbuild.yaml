@@ -1,0 +1,38 @@
+# Build the image in Cloud Build, push it to Artifact Registry, deploy to
+# Cloud Run. The API key is NOT set here - it is a Secret Manager value bound at
+# deploy time (see README "Deploy to Google Cloud"), so it never appears in this
+# file, in the image, or in build logs.
+substitutions:
+  _REGION: asia-south1
+  _REPO: tele-triage
+  _SERVICE: tele-triage
+  _GEMINI_MODEL: gemini-2.5-flash
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-t", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$COMMIT_SHA", "."]
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$COMMIT_SHA"
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$COMMIT_SHA
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated
+      - --port=8080
+      - --set-env-vars=LLM_MODEL=${_GEMINI_MODEL},ALLOWED_ORIGINS=none
+      - --set-secrets=GOOGLE_API_KEY=gemini-api-key:latest
+
+images:
+  - "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$COMMIT_SHA"
+
+options:
+  logging: CLOUD_LOGGING_ONLY

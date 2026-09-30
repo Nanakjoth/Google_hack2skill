@@ -1,0 +1,20 @@
+# Never ship these into a public image.
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.git/
+.gitignore
+
+# The API key must be a Cloud Run *secret*, not a file in the image. If a .env
+# ever lands here it would be readable by anyone who pulls the image.
+.env
+.env.*
+!.env.example
+
+# Local scratch
+*.log
+server.log
+eval/lab_reports.json.bak

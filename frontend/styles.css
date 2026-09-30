@@ -909,3 +909,213 @@ details.json pre {
   .pt-row.q-row .prio { display: none; }
   .decide { justify-content: flex-start; margin-top: 8px; }
 }
+
+/* ============================================================
+   AI ASSESSMENT  +  ROUTING VERIFICATION   (plan §11)
+
+   Two columns, because the product argument is a boundary: the left is what a
+   model proposed, the right is what the system checked about the real world.
+   The left column is tinted and the right is not, so the split survives at a
+   glance without reading either heading.
+   ============================================================ */
+.assess {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0;
+  margin: 0 0 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-m);
+  overflow: hidden;
+}
+.assess-col { padding: 15px 17px 17px; min-width: 0; }
+.assess-col.ai { background: var(--accent-soft); border-right: 1px solid var(--border); }
+.assess-col.verify { background: var(--panel-2); }
+
+.assess-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.assess-head svg { width: 15px; height: 15px; flex: none; }
+.assess-col.ai .assess-head svg { color: var(--accent); }
+.assess-col.verify .assess-head svg { color: var(--green); }
+.assess-head h4 { margin: 0; font-size: .82rem; letter-spacing: .02em; flex: 1; }
+.assess-note { margin: 0 0 13px; font-size: .71rem; line-height: 1.5; color: var(--muted); }
+
+.assess-dl {
+  display: grid; grid-template-columns: auto minmax(0, 1fr);
+  gap: 7px 14px; margin: 0 0 14px; align-items: baseline;
+}
+.assess-dl dt { font-size: .7rem; color: var(--muted); white-space: nowrap; }
+.assess-dl dd { margin: 0; font-size: .82rem; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+
+.assess-flags .k { font-size: .7rem; color: var(--muted); margin-bottom: 6px; }
+.assess-flags ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.assess-flags li {
+  display: flex; align-items: flex-start; gap: 6px;
+  font-size: .76rem; line-height: 1.45; color: var(--text-2);
+}
+.assess-flags li svg { width: 13px; height: 13px; flex: none; margin-top: 2px; color: var(--amber); }
+
+/* A case held for a clinician is called out on both sides of the run, because
+   "the model was unsure" changes how the whole card should be read. */
+.mr-flag {
+  display: flex; align-items: flex-start; gap: 8px;
+  margin: 0 0 13px; padding: 9px 11px;
+  background: var(--amber-bg); border: 1px solid var(--amber-line);
+  border-radius: var(--r-s);
+  font-size: .74rem; line-height: 1.5; color: var(--text-2);
+}
+.mr-flag svg { width: 15px; height: 15px; flex: none; margin-top: 1px; color: var(--amber); }
+.mr-flag b { color: var(--amber); }
+
+.checks { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 9px; }
+.checks li { display: flex; align-items: flex-start; gap: 9px; }
+.checks .cmark {
+  width: 17px; height: 17px; flex: none; border-radius: 50%;
+  display: grid; place-items: center; margin-top: 1px;
+}
+.checks .cmark svg { width: 11px; height: 11px; }
+.checks .pass .cmark { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-line); }
+.checks .fail .cmark { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red-line); }
+.cbody { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.cbody b { font-size: .79rem; font-weight: 600; }
+.cdetail { font-size: .71rem; color: var(--muted); line-height: 1.45; }
+
+.verify-out {
+  padding: 11px 13px; border-radius: var(--r-s);
+  background: var(--panel); border: 1px solid var(--border-soft);
+}
+.verify-out .k { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.verify-out .doc { font-size: .95rem; font-weight: 650; margin-top: 3px; }
+.verify-out .fac { font-size: .76rem; color: var(--text-2); }
+.verify-out .nobed { margin-top: 7px; font-size: .7rem; line-height: 1.45; color: var(--green); }
+
+@media (max-width: 900px) {
+  .assess { grid-template-columns: minmax(0, 1fr); }
+  .assess-col.ai { border-right: 0; border-bottom: 1px solid var(--border); }
+}
+
+/* ============================================================
+   CANDIDATE FUNNEL   (plan §13 step 4: "7 possible, 3 eligible, 1 selected")
+   ============================================================ */
+.funnel { margin-top: 12px; }
+.funnel .lbl { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 9px; }
+.funnel-stages { display: flex; align-items: stretch; gap: 4px; flex-wrap: wrap; }
+.fstage {
+  flex: 1 1 120px; min-width: 0; padding: 10px 12px;
+  background: var(--panel-2); border: 1px solid var(--border-soft);
+  border-radius: var(--r-s);
+  animation: cardIn .34s var(--ease) both;
+}
+.fstage:last-of-type { background: var(--accent-soft); border-color: var(--accent-2); }
+.fstage .fv { font-family: var(--mono); font-size: 1.32rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.fstage:last-of-type .fv { color: var(--accent); }
+.fstage .fk { font-size: .71rem; font-weight: 600; margin-top: 4px; }
+.fstage .fw { font-size: .66rem; color: var(--muted); line-height: 1.4; margin-top: 3px; }
+.farrow { display: grid; place-items: center; color: var(--muted); flex: none; }
+.farrow svg { width: 14px; height: 14px; }
+
+/* ============================================================
+   PATIENT PORTAL   (plan §19 screen 1)
+   ============================================================ */
+.portal-grid { display: grid; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 1000px) { .portal-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.plist-label { margin-bottom: 7px; text-transform: uppercase; letter-spacing: .05em; }
+.plist { display: flex; flex-direction: column; gap: 5px; max-height: 340px; overflow-y: auto; }
+.pchip {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 7px 10px; text-align: left; cursor: pointer;
+  background: var(--panel-2); border: 1px solid var(--border-soft);
+  border-radius: var(--r-s); color: var(--text); font: inherit; font-size: .78rem;
+  transition: border-color .15s, background .15s;
+}
+.pchip:hover { border-color: var(--accent-2); background: var(--accent-soft); }
+.pchip .pn { font-family: var(--mono); color: var(--muted); font-size: .72rem; }
+.pchip .pm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.pcard {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--r-l); box-shadow: var(--sh-1); overflow: hidden;
+  animation: cardIn .34s var(--ease) both;
+}
+.pcard-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;
+  padding: 18px 20px; border-bottom: 1px solid var(--border-soft); flex-wrap: wrap;
+}
+.pcard-head h3 { margin: 0 0 6px; font-size: 1.12rem; }
+.pcard-meta { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; font-size: .78rem; color: var(--muted); }
+.pcard-meta .sep { opacity: .5; }
+
+.pstats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--border-soft); }
+.pstat { padding: 15px 20px; background: var(--panel); }
+.pstat .k { font-size: .69rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.pstat .v { font-family: var(--mono); font-size: 1.5rem; font-weight: 700; line-height: 1.1; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.pstat .v.small { font-family: var(--sans); font-size: .92rem; }
+.pstat .s { font-size: .71rem; color: var(--muted); margin-top: 3px; }
+
+.pdec { margin: 18px 20px; padding: 15px 17px; border-radius: var(--r-m); border: 1px solid var(--border); background: var(--panel-2); }
+.pdec-t { display: flex; align-items: center; gap: 8px; font-size: .95rem; font-weight: 650; }
+.pdec-t svg { width: 17px; height: 17px; flex: none; }
+.pdec p { margin: 8px 0 0; font-size: .82rem; line-height: 1.6; color: var(--text-2); }
+.pdec.pending { background: var(--amber-bg); border-color: var(--amber-line); }
+.pdec.pending .pdec-t { color: var(--amber); }
+.pdec.no_visit { background: var(--green-bg); border-color: var(--green-line); }
+.pdec.no_visit .pdec-t { color: var(--green); }
+.pdec.visit_required { background: var(--blue-bg); border-color: var(--blue); }
+.pdec.visit_required .pdec-t { color: var(--blue); }
+.pdec.escalate { background: var(--accent-soft); border-color: var(--accent-2); }
+.pdec.escalate .pdec-t { color: var(--accent); }
+.pnote { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-size: .8rem; line-height: 1.55; }
+
+.preport { margin: 0 20px 20px; }
+.preport summary {
+  display: flex; align-items: center; gap: 7px; cursor: pointer;
+  font-size: .78rem; color: var(--muted); padding: 9px 0;
+}
+.preport summary svg { width: 14px; height: 14px; }
+.preport pre {
+  margin: 0; padding: 13px 15px; max-height: 300px; overflow: auto;
+  background: var(--panel-3); border: 1px solid var(--border-soft);
+  border-radius: var(--r-s);
+  font-family: var(--mono); font-size: .72rem; line-height: 1.6;
+  white-space: pre-wrap; word-break: break-word; color: var(--text-2);
+}
+
+/* ============================================================
+   BEFORE / AFTER   (plan §12)
+   ============================================================ */
+.ba-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; margin-top: 16px; }
+.ba-col {
+  padding: 16px 18px 18px; border-radius: var(--r-m);
+  border: 1px solid var(--border); background: var(--panel-2);
+}
+.ba-col.before { background: var(--panel); }
+.ba-col.after  { background: var(--accent-soft); border-color: var(--accent-2); }
+.ba-head { margin-bottom: 15px; }
+.ba-sub { font-size: .77rem; color: var(--muted); margin-top: 7px; }
+.ba-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.ba-steps li {
+  display: flex; align-items: flex-start; gap: 11px; padding: 8px 0;
+  border-bottom: 1px dashed var(--border-soft);
+  animation: cardIn .34s var(--ease) both;
+}
+.ba-steps li:last-child { border-bottom: 0; }
+.ba-steps .n {
+  width: 21px; height: 21px; flex: none; border-radius: 50%;
+  display: grid; place-items: center; margin-top: 1px;
+  font-family: var(--mono); font-size: .68rem; font-weight: 700;
+  background: var(--panel-3); color: var(--muted);
+}
+.ba-col.after .ba-steps .n { background: var(--accent); color: var(--panel); }
+html[data-theme="dark"] .ba-col.after .ba-steps .n { color: var(--bg); }
+.ba-steps .b { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ba-steps .b b { font-size: .82rem; font-weight: 600; line-height: 1.35; }
+.ba-steps .b .d { font-size: .72rem; color: var(--muted); line-height: 1.45; }
+.ba-foot {
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
+  font-size: .72rem; color: var(--muted); line-height: 1.5;
+}
+
+.ba-notes { margin-top: 15px; }
+.ba-note-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.banote { padding: 14px 16px; background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: var(--r-m); }
+.banote b { font-size: .84rem; display: block; margin-bottom: 6px; }
+.banote p { margin: 0; font-size: .77rem; line-height: 1.6; color: var(--text-2); }

@@ -17,7 +17,7 @@ Reports:
 
 Run:  python -m eval.run_eval [--limit N] [--out results.json]
 
-Requires GROQ_API_KEY. It makes one API call per report, so run it with
+Requires GOOGLE_API_KEY. It makes one API call per report, so run it with
 --limit while iterating.
 """
 
@@ -31,6 +31,8 @@ import time
 from collections import Counter, defaultdict
 
 import llm
+from agents import agent1_triage, agent2_allocator, agent3_routing
+from data_store import hospitals, resolve_specialty
 
 DATASET = os.path.join(os.path.dirname(__file__), "lab_reports.json")
 
@@ -38,10 +40,11 @@ SEVERITIES = ["Green", "Yellow", "Red"]
 # Under-triage costs far more than over-triage in a rural referral pathway.
 SEVERITY_PENALTY = {"Green": 0, "Yellow": 1, "Red": 2}
 
-# Approximate Groq per-1M-token rates. Override with LLM_IN_COST / LLM_OUT_COST
-# (USD) if the model or pricing changes - do not trust these to be current.
-COST_IN_PER_M = float(os.getenv("LLM_IN_COST", "0.59"))
-COST_OUT_PER_M = float(os.getenv("LLM_OUT_COST", "0.79"))
+# Approximate Gemini per-1M-token rates. Override with LLM_IN_COST /
+# LLM_OUT_COST (USD) if the model or pricing changes - do not trust these to be
+# current.
+COST_IN_PER_M = float(os.getenv("LLM_IN_COST", "0.30"))
+COST_OUT_PER_M = float(os.getenv("LLM_OUT_COST", "2.50"))
 
 
 # --------------------------------------------------------------------------
@@ -85,6 +88,76 @@ def _cost(tokens: dict) -> float:
     return p + c
 
 
+# --------------------------------------------------------------------------
+# Routing check.
+#
+# §18 asks for correct / wrong routing, which cannot be measured by looking at
+# Agent 1's output alone - severity accuracy says nothing about whether the case
+# reached a doctor who could take it. So this drives the real Agent 2 and Agent 3
+# with the model's triage and scores where it lands.
+#
+# Ground truth is the dataset's `expected_specialist`: a case that needs a
+# haematologist has not been routed correctly if it ends up with a general duty
+# doctor. "none" means no specialty-specific review is needed, so a general
+# doctor is the right destination and any specialty is not a routing error.
+#
+# Agent 3 increments doctor load as a side effect of assigning, so loads are
+# snapshotted and restored around the call. Without that, report 1's assignment
+# would make report 2 look like a capacity failure and the numbers would drift
+# with position in the run.
+# --------------------------------------------------------------------------
+def _score_routing(result, need: dict) -> dict:
+    """Run the deterministic agents on one triage and judge the destination."""
+    loads = {d["name"]: d["load"] for h in hospitals for d in h["doctors"]}
+    try:
+        eligible, _ = agent2_allocator.run(need)
+        hospital, doctor, _step, _ = agent3_routing.run(eligible, need)
+    finally:
+        for h in hospitals:
+            for d in h["doctors"]:
+                d["load"] = loads[d["name"]]
+        agent3_routing._reservations.clear()
+
+    expected = resolve_specialty(need.get("_expected_specialist"))
+    if doctor is None:
+        # Nobody to take it. Not the model's mistake - the network was out of
+        # capacity - so it is reported apart from a wrong destination.
+        return {"outcome": "unassigned", "expected": expected,
+                "routed_to": None, "correct": None}
+    routed = resolve_specialty(doctor["specialty"])
+    if expected == "general_medicine":
+        correct = True          # any general duty doctor is a correct landing
+    else:
+        correct = routed == expected
+    return {
+        "outcome": "routed" if correct else "misrouted",
+        "expected": expected,
+        "routed_to": routed,
+        "facility": hospital["name"] if hospital else None,
+        "correct": correct,
+    }
+
+
+def _need_from(result) -> dict:
+    """The subset of Agent 1's `need` that the deterministic agents read.
+
+    Built here rather than by calling agent1 so the eval scores the model's own
+    output. Running agent1 would re-apply its confidence floor and its
+    fallback, and the harness would then be measuring the safety net it is
+    supposed to be measuring the model against.
+    """
+    meds = result.medicine_map()
+    if result.platelets_needed:
+        meds["platelet_concentrate"] = max(
+            meds.get("platelet_concentrate", 0), result.platelets_needed)
+    return {
+        "icu": result.icu_needed,
+        "platelets": result.platelets_needed,
+        "specialist": None if result.specialist == "none" else result.specialist,
+        "medicines": {k: v for k, v in meds.items() if v > 0},
+    }
+
+
 def evaluate(reports: list, limit: int | None = None) -> dict:
     if limit:
         reports = reports[:limit]
@@ -104,6 +177,11 @@ def evaluate(reports: list, limit: int | None = None) -> dict:
     # review, and it does. Counted apart from plain inaccuracy because this is
     # the recommendation that could keep a sick patient at home.
     visit_misses = []
+    # §18's remaining metrics. Routing is scored by driving the real Agents 2-3;
+    # manual review is whatever the production confidence floor would flag.
+    routing = Counter()
+    misrouted_ids = []
+    manual_review = 0
 
     print(f"{'id':<8}{'triage':<7}{'expected':<9}{'noise':<7}{'ok':<4}{'ms':<7}note")
     print("-" * 78)
@@ -147,7 +225,11 @@ def evaluate(reports: list, limit: int | None = None) -> dict:
             by_tpl[r["template"]]["n"] += 1
             by_tpl[r["template"]]["correct"] += hit
             latencies.append(elapsed)
-            last = llm.trace()[0]
+            # Token/cost accounting reads the trace, but a result can arrive
+            # without one (a cached call, a stubbed model in a test). Missing
+            # trace must mean "no cost recorded", not an IndexError that loses
+            # the whole run's results.
+            last = llm.trace()[0] if llm.trace() else {}
             costs.append(_cost(last.get("tokens")))
             for k, v in (last.get("tokens") or {}).items():
                 if v:
@@ -156,6 +238,22 @@ def evaluate(reports: list, limit: int | None = None) -> dict:
             conf[expected]["ERROR"] += 1
             by_noise[r["noise"]]["n"] += 1
             by_tpl[r["template"]]["n"] += 1
+
+        # Routing + manual review, from the model's own output. An unreadable
+        # report has no routing to score; it counts as a manual-review case,
+        # which is the honest outcome rather than a silent pass.
+        if result is not None:
+            need = _need_from(result)
+            need["_expected_specialist"] = r.get("expected_specialist")
+            route = _score_routing(result, need)
+            routing[route["outcome"]] += 1
+            if route["outcome"] == "misrouted":
+                misrouted_ids.append(f'{r["id"]}({route["expected"]}->{route["routed_to"]})')
+            if result.confidence < agent1_triage.MIN_CONFIDENCE:
+                manual_review += 1
+        else:
+            manual_review += 1
+            routing["unreadable"] += 1
 
         rows.append({
             "id": r["id"], "template": r["template"], "noise": r["noise"],
@@ -173,6 +271,9 @@ def evaluate(reports: list, limit: int | None = None) -> dict:
             "confidence": (result.confidence if result else None),
             "red_flags": (result.red_flags if result else None),
             "reasoning": (result.reasoning if result else None),
+            "routing": route if result is not None else {"outcome": "unreadable"},
+            "manual_review": (result is None
+                              or result.confidence < agent1_triage.MIN_CONFIDENCE),
             "latency_ms": round(elapsed),
         })
 
@@ -186,7 +287,18 @@ def evaluate(reports: list, limit: int | None = None) -> dict:
     # Under-triage = model says something less severe than the truth.
     under = [r for r in rows if r["predicted"] and
              SEVERITY_PENALTY[r["predicted"]] < SEVERITY_PENALTY[r["expected"]]]
+    # Over-triage is the mirror: more severe than the truth. Cheaper than
+    # under-triage in a rural pathway - it burns a scarce doctor slot and can
+    # push a genuinely routine case behind a real one - but it is a real cost,
+    # and folding it into plain accuracy hides it. A model that called every
+    # case Red would score well on under-triage and terribly on this.
+    over = [r for r in rows if r["predicted"] and
+            SEVERITY_PENALTY[r["predicted"]] > SEVERITY_PENALTY[r["expected"]]]
 
+    # Routing is scored only over cases that produced a verdict, because an
+    # unreadable report has no destination to judge. The denominator is stated
+    # so the rate cannot be quietly flattered by excluding the hard cases.
+    routed_n = routing["routed"] + routing["misrouted"]
     spec_ok = sum(1 for r in rows if r["predicted"]
                   and r["predicted_specialist"] == r["expected_specialist"])
     spec_n = sum(1 for r in rows if r["predicted"])
@@ -200,8 +312,24 @@ def evaluate(reports: list, limit: int | None = None) -> dict:
             "specialist_accuracy": round(spec_ok / spec_n, 4) if spec_n else None,
             "under_triage_count": len(under),
             "under_triage_rate": round(len(under) / n, 4) if n else 0,
+            "over_triage_count": len(over),
+            "over_triage_rate": round(len(over) / n, 4) if n else 0,
         },
         "baseline": {"accuracy": round(base_hits / n, 4) if n else 0},
+        "routing": {
+            "scored": routed_n,
+            "correct": routing["routed"],
+            "wrong": routing["misrouted"],
+            "unassigned": routing["unassigned"],
+            "unreadable": routing["unreadable"],
+            "accuracy": round(routing["routed"] / routed_n, 4) if routed_n else None,
+            "misrouted": misrouted_ids,
+        },
+        "manual_review": {
+            "count": manual_review,
+            "rate": round(manual_review / n, 4) if n else 0,
+            "threshold": agent1_triage.MIN_CONFIDENCE,
+        },
         "recommendations": {
             "physical_visit_accuracy": round(visit_hits / spec_n, 4) if spec_n else None,
             "escalation_accuracy": round(esc_hits / spec_n, 4) if spec_n else None,
@@ -244,8 +372,27 @@ def print_report(res: dict) -> None:
     print(f'lift over base   {res["llm"]["accuracy"] - res["baseline"]["accuracy"]:+.1%}')
     print(f'under-triage     {res["llm"]["under_triage_count"]} cases '
           f'({res["llm"]["under_triage_rate"]:.1%})  <-- the dangerous error')
+    print(f'over-triage      {res["llm"]["over_triage_count"]} cases '
+          f'({res["llm"]["over_triage_rate"]:.1%})  <-- burns a doctor slot')
     print(f'specialist acc   {res["llm"]["specialist_accuracy"]}')
     print(f'errors/retries   {res["llm"]["errors"]}')
+
+    rt = res.get("routing") or {}
+    if rt.get("scored"):
+        print(f'\n--- routing (destination reached, not just severity) ---')
+        print(f'correct routing  {rt["correct"]}/{rt["scored"]} '
+              f'({rt["accuracy"]:.1%})')
+        print(f'wrong routing    {rt["wrong"]}  '
+              f'(unassigned for capacity: {rt["unassigned"]}, '
+              f'unreadable: {rt["unreadable"]})')
+        if rt.get("misrouted"):
+            print(f'  misrouted: {", ".join(rt["misrouted"][:8])}')
+
+    mr = res.get("manual_review") or {}
+    if mr:
+        print(f'\n--- held for a clinician rather than auto-dispositioned ---')
+        print(f'manual review    {mr["count"]} cases ({mr["rate"]:.1%})  '
+              f'(model confidence below {mr["threshold"]}, or unreadable)')
 
     rec = res.get("recommendations") or {}
     if rec.get("physical_visit_accuracy") is not None:
@@ -280,7 +427,7 @@ def main():
     args = ap.parse_args()
 
     if not llm.available():
-        print("GROQ_API_KEY is not set. Set it in .env to run the eval.", file=sys.stderr)
+        print("GOOGLE_API_KEY is not set. Set it in .env to run the eval.", file=sys.stderr)
         return 1
 
     with open(DATASET, encoding="utf-8") as f:
