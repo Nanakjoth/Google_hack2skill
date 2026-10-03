@@ -71,8 +71,8 @@ it is never baked into the image.**
 # one-time setup
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com \
                   secretmanager.googleapis.com artifactregistry.googleapis.com
-gcloud artifacts repositories create tele-triage \
-  --repository-format=docker --location=asia-south1
+gcloud artifacts repositories create careflow \
+  --repository-format=docker --location=europe-west1
 gcloud secrets create gemini-api-key --replication-policy=automatic
 printf '%s' "$YOUR_KEY" | gcloud secrets versions add gemini-api-key
 
@@ -89,8 +89,34 @@ The `Dockerfile` runs as an unprivileged user, binds `$PORT` (Cloud Run sets it
 to 8080) and `.dockerignore` refuses `.env` into the build context, so a stray
 key on a laptop cannot end up in a public image.
 
-> Not yet run. The build and deploy steps above are written but unverified — no
-> GCP project was available in the environment where this was written.
+### If the console says "Model: not configured"
+
+The service is up and the queue works; only the model path is off. That means
+`GOOGLE_API_KEY` is not in the container, and `.dockerignore` guarantees it
+cannot have arrived any other way — there is deliberately no in-image fallback.
+Almost always the secret binding was dropped by a deploy that did not go through
+`cloudbuild.yaml`:
+
+```
+gcloud run services update careflow --region=europe-west1 \
+  --update-secrets=GOOGLE_API_KEY=gemini-api-key:latest
+```
+
+Check what the running revision actually has:
+
+```
+gcloud run services describe careflow --region=europe-west1 \
+  --format='value(spec.template.spec.containers[0].env)'
+curl -s https://careflow-476449259564.europe-west1.run.app/queue | python -m json.tool | grep llm
+```
+
+> `/healthz` returns **404 in production** and this is not a bug. Google Front
+> End, which fronts Cloud Run, reserves that path and answers it with its own
+> HTML error page without ever passing the request to the container. Every other
+> route on the same service returns normally. The console probes `/healthz`
+> *and* `/queue` for exactly this reason, and `/queue` carries `llm_configured`
+> too — so verify the model path with `/queue` or `/agents/llm-trace`, never
+> `/healthz`.
 
 ## Evaluating the model
 

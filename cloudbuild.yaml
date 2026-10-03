@@ -2,11 +2,21 @@
 # Cloud Run. The API key is NOT set here - it is a Secret Manager value bound at
 # deploy time (see README "Deploy to Google Cloud"), so it never appears in this
 # file, in the image, or in build logs.
+#
+# These substitutions must match the service you actually run. They used to say
+# `tele-triage` in `asia-south1`, which described no deployed service at all -
+# so every deploy driven by this file would have created a second, differently
+# named one. Now they match the live URL:
+#   https://careflow-476449259564.europe-west1.run.app
+# Verify after changing anything here:
+#   gcloud run services describe careflow --region=europe-west1 --format='value(status.url)'
 substitutions:
-  _REGION: asia-south1
-  _REPO: tele-triage
-  _SERVICE: tele-triage
-  _GEMINI_MODEL: gemini-2.5-flash
+  _REGION: europe-west1
+  _REPO: careflow
+  _SERVICE: careflow
+  # Must match the llm.py default, or Cloud Run reports a model the code would
+  # never have used on its own.
+  _GEMINI_MODEL: gemini-3-flash-preview
 
 steps:
   - name: gcr.io/cloud-builders/docker

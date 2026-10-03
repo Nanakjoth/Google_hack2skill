@@ -1281,3 +1281,53 @@ def test_status_probe_does_not_depend_on_a_single_path(client):
         "noticing at all")
     # And loadQueue must record liveness, or the fallback never runs.
     assert "state.apiOk = true" in src.split("async function loadQueue")[1][:600]
+
+
+def test_cloudbuild_model_matches_the_code_default():
+    """`_GEMINI_MODEL` must equal the model `llm.py` defaults to.
+
+    These were `gemini-2.5-flash` and `gemini-3-flash-preview` respectively -
+    a silent disagreement, because Cloud Run's `--set-env-vars` wins over the
+    code default and nothing reports the difference. A deploy through this file
+    would have quietly changed which model triages every case, with the repo
+    claiming one answer and the service using another.
+    """
+    cb = (Path(ROOT) / "cloudbuild.yaml").read_text(encoding="utf-8")
+    m = re.search(r"_GEMINI_MODEL:\s*(\S+)", cb)
+    assert m, "_GEMINI_MODEL missing from cloudbuild.yaml"
+    assert m.group(1) == llm.MODEL, (
+        f"cloudbuild.yaml deploys {m.group(1)} but llm.py defaults to "
+        f"{llm.MODEL}; Cloud Run's env var wins and nothing warns")
+
+
+def test_cloudbuild_does_not_hardcode_service_or_region():
+    """The deploy step must reference the substitutions, never literals.
+
+    These substitutions described `tele-triage` in `asia-south1` while the real
+    service was `careflow` in `europe-west1`. Nothing failed - the file was
+    valid, and a submit would have created a *second* service under the other
+    name. Asserted structurally: if every occurrence of the service and region
+    is a `${_...}` reference, there is exactly one place to edit, so the file
+    cannot describe a service that does not exist without that being visible.
+    """
+    cb = (Path(ROOT) / "cloudbuild.yaml").read_text(encoding="utf-8")
+    subs = dict(re.findall(r"^\s*(_[A-Z_]+):\s*(\S+)\s*$", cb, re.M))
+    for key in ("_SERVICE", "_REGION", "_REPO", "_GEMINI_MODEL"):
+        assert key in subs, f"{key} missing from cloudbuild.yaml"
+
+    # The deploy args reference the substitutions rather than repeating values.
+    # Matched on the whole flag, not the bare substitution name: ${_REGION} also
+    # appears inside --image, so searching for just "${_REGION}" would be
+    # satisfied by an unrelated argument and would pass even with --region
+    # hardcoded to a stale value.
+    deploy = cb.split("cloud-sdk:slim", 1)[-1]
+    assert "--region=${_REGION}" in deploy, (
+        f"--region is not driven by _REGION; a literal there is a second place "
+        f"to edit and can silently disagree with _REGION={subs['_REGION']}")
+    assert "${_SERVICE}" in deploy, (
+        f"deploy step does not reference _SERVICE={subs['_SERVICE']}")
+
+    # And the service/region actually named agree with each other.
+    assert subs["_SERVICE"] == subs["_REPO"], (
+        "image repo and Cloud Run service should be the same name; if they "
+        f"differ ({subs['_REPO']} vs {subs['_SERVICE']}) one of them is stale")
