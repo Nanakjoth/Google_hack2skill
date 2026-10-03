@@ -807,28 +807,6 @@ details.json pre {
   flex-direction: column;
   gap: 2px;
   box-shadow: var(--sh-1);
-  /* Tiles are filters, so they are real buttons: reset the UA styling, keep the
-     tile look, and make focus visible. A control a keyboard user cannot see
-     focused is not accessible just because it works with a mouse. */
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color .12s, box-shadow .12s, transform .06s;
-}
-.stat-tile:hover:not(:disabled) { border-color: var(--accent-2); }
-.stat-tile:active:not(:disabled) { transform: translateY(1px); }
-.stat-tile:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-/* Zero is a fact, not an invitation - a tile that cannot narrow the view is
-   inert, and should look it. */
-.stat-tile:disabled { opacity: .45; cursor: default; }
-/* The active tile is the filter currently applied to the list below. */
-.stat-tile.on {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft), var(--sh-2);
 }
 .stat-tile .n { font-size: 1.5rem; font-weight: 650; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .stat-tile .l { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
