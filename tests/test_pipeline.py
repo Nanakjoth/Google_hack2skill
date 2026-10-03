@@ -9,10 +9,19 @@ and it must be correct before anyone trusts numbers printed off a real run.
 
 import sys
 import os
+import re
+from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+
+# The console ships in the image and is served by the same app, so a few
+# properties are asserted against the file itself. Behaviour that only shows up
+# behind a CDN or a Cloud Run front end cannot be reproduced in-process, and a
+# deploy-only regression is exactly the kind that ships silently.
+FRONTEND = Path(ROOT) / "frontend"
 
 import data_store as ds
 import llm
@@ -1223,3 +1232,52 @@ def test_unassigned_case_stays_visible_in_the_queue():
         assert queue.queue_stats()["unassigned"] == 1
     finally:
         ds.patients.clear()
+
+
+def test_queue_carries_model_config_so_status_needs_no_healthz(client):
+    """`/queue` must report model configuration, not just `/healthz`.
+
+    Google Front End, which fronts Cloud Run, reserves the path `/healthz` and
+    answers it with its own 404 HTML page without passing the request to the
+    container. Everything else on the same service returns normally. A console
+    that took liveness and model status only from `/healthz` therefore showed
+    "API: offline" and "Model: unknown" while `/queue` was returning the whole
+    queue 200 from the same process.
+
+    The fix is to stop depending on one path, which needs the data to exist
+    somewhere the proxy is not holding. This asserts it does, and that it agrees
+    with `/healthz` - a second place to keep in sync is only safe if the two
+    cannot silently diverge.
+    """
+    q = client.get("/queue")
+    assert q.status_code == 200
+    body = q.json()
+    assert "llm_configured" in body, body.keys()
+    assert "llm_model" in body, body.keys()
+    assert isinstance(body["llm_configured"], bool)
+
+    h = client.get("/healthz").json()
+    assert body["llm_configured"] is h["llm_configured"]
+    assert body["llm_model"] == h["llm_model"]
+
+
+def test_status_probe_does_not_depend_on_a_single_path(client):
+    """The console must find the API even where one path is intercepted.
+
+    Asserted on the probe list rather than on any HTTP behaviour, because the
+    interception lives in Google's front end and is not reproducible against the
+    in-process test client: locally every path works, which is exactly why the
+    deployed-only failure survived so long. Two independent paths, one of which
+    the console fetches on every load regardless, is the property that matters.
+    """
+    src = Path(FRONTEND / "app.js").read_text(encoding="utf-8")
+    probes = re.search(r"HEALTH_PROBES\s*=\s*\[([^\]]*)\]", src)
+    assert probes, "HEALTH_PROBES list not found in app.js"
+    paths = re.findall(r"'([^']+)'", probes.group(1))
+    assert len(paths) >= 2, f"only one probe path: {paths}"
+    assert "/queue" in paths, (
+        "/queue must be a probe: it is the endpoint loadQueue already fetches, "
+        "so it cannot be shadowed by a reserved path without the console "
+        "noticing at all")
+    # And loadQueue must record liveness, or the fallback never runs.
+    assert "state.apiOk = true" in src.split("async function loadQueue")[1][:600]

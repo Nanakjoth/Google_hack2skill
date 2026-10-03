@@ -327,6 +327,19 @@ def get_queue():
         "doctor_queues": queue.doctor_queues(),
         "specialist_queues": queue.specialist_queue(),
         "server_time": now(),
+        # Model configuration rides along with the queue the console already
+        # fetches on every load.
+        #
+        # `/healthz` is the obvious home for it, and it still is - but Google
+        # Front End reserves that path and answers it with its own 404 HTML page
+        # *before* the request reaches the container. Deployed on Cloud Run, a
+        # console whose status pill depended on /healthz alone therefore
+        # reported "API: offline" and "Model: unknown" while /queue, /hospitals
+        # and every other route returned 200 from the same container. Two
+        # booleans duplicated here keep the pills honest regardless of which
+        # paths the proxy in front decides to claim.
+        "llm_configured": llm.available(),
+        "llm_model": llm.MODEL,
     }
 
 

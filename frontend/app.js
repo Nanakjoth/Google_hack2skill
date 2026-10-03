@@ -294,13 +294,37 @@ function paintPills() {
       : 'No GOOGLE_API_KEY - the conservative rule-based fallback is used instead';
 }
 
+// Probe liveness, but never depend on a single path to decide.
+//
+// `/healthz` is the intended probe and is tried first. It is not the only one,
+// because a proxy in front is free to answer for any path it likes: Google
+// Front End - which fronts Cloud Run - reserves `/healthz` and returns its own
+// 404 HTML page without ever passing the request to the container. A console
+// that read liveness only from `/healthz` therefore showed "API: offline" and
+// "Model: unknown" while `/queue`, `/hospitals` and the rest of the same
+// container answered 200. `loadQueue` also records liveness, so `/queue` works
+// as the fallback and the API is only declared unreachable when nothing at all
+// responds.
+const HEALTH_PROBES = ['/healthz', '/queue'];
+
 async function checkHealth() {
-  try {
-    const h = await api('/healthz');
-    state.apiOk = true;
-    state.llmOk = !!h.llm_configured;
-  } catch (e) {
+  let lastErr = null;
+  for (const path of HEALTH_PROBES) {
+    try {
+      const h = await api(path);
+      state.apiOk = true;
+      // Only /healthz and /queue carry model config; a path that omits it
+      // leaves the existing value alone rather than reporting "not configured".
+      if (h && h.llm_configured !== undefined) state.llmOk = !!h.llm_configured;
+      lastErr = null;
+      break;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  if (lastErr) {
     state.apiOk = false;
+    state.probeError = lastErr.message;
   }
   paintPills();
   if (!state.apiOk) toast('err', 'Backend unreachable', unreachableWhy());
@@ -313,14 +337,15 @@ async function checkHealth() {
 // Cloud Run URL that could not reach its API was told to start a local server
 // - advice that is impossible to follow and points at the wrong layer entirely.
 function unreachableWhy() {
+  const tried = HEALTH_PROBES.join(' and ');
   if (API_BASE) {
-    return `No response from ${API_BASE} - check that the backend is running.`;
+    return `No response from ${tried} at ${API_BASE} - check that the backend is running.`;
   }
   // Same-origin: the console and the API are served by the same app, so a
-  // failure here means the whole service is down, not a misconfigured URL.
-  return `No response from ${location.origin}/healthz. The console and API are `
-       + `served together, so this is the service being unreachable - check the `
-       + `deployment rather than a local server.`;
+  // failure on every probe means the whole service is down, not one bad URL.
+  return `No response from ${tried} at ${location.origin}. The console and API `
+       + `are served together, so this is the service being unreachable - check `
+       + `the deployment rather than a local server.`;
 }
 
 /* ---------------- navigation ---------------- */
@@ -1070,8 +1095,17 @@ async function loadQueue() {
   const el = $('doctor-body');
   try {
     state.queue = await api('/queue');
+    // A successful /queue is proof the API is reachable, and it carries the
+    // model config. Recording it here means the status pills are correct even
+    // if every entry in HEALTH_PROBES is answered by something in front of the
+    // app - `loadQueue` runs on page load and on every refresh.
+    state.apiOk = true;
+    if (state.queue.llm_configured !== undefined) {
+      state.llmOk = !!state.queue.llm_configured;
+    }
     renderQueue();
     paintCounts();
+    paintPills();
   } catch (e) {
     el.innerHTML = `<div class="card empty">${svg('warn')}<strong>Could not load the queue</strong><p>${esc(e.message)}</p></div>`;
   }
