@@ -165,7 +165,7 @@ hospitals = [
     {"id": "h5", "name": "Regional Medical College", "district": "State Capital - Metro", "type": "Medical College",
      "lat": 26.85, "lng": 78.35, "icu_total": 10, "icu": 10,
      "specialties": {"general_medicine", "hematologist", "cardiologist", "pediatrician", "general_surgeon"},
-     "senior_specialties": {"cardiologist", "hematologist", "pediatrician", "general_surgeon"},
+     "senior_specialties": {"general_medicine", "cardiologist", "hematologist", "pediatrician", "general_surgeon"},
      "stock": {"paracetamol": 300, "oral_rehydration": 150, "doxycycline": 70, "ceftriaxone": 60,
                "platelet_concentrate": 45, "ringer_lactate": 110, "insulin_glargine": 60,
                "aspirin": 80, "streptokinase": 18},
@@ -174,6 +174,14 @@ hospitals = [
          {"name": "Dr. Deshmukh", "specialty": "hematologist", "senior": True, "load": 3, "capacity": 16},
          {"name": "Dr. Sundaram", "specialty": "general_surgeon", "senior": True, "load": 2, "capacity": 12},
          {"name": "Dr. Iqbal", "specialty": "pediatrician", "senior": True, "load": 1, "capacity": 12},
+         # A senior general physician, without whom `general_medicine` claiming
+         # `senior: True` in SPECIALTIES above was a lie the roster could not
+         # keep: `facilities_with(..., senior_only=True)` returned an empty list,
+         # so escalating any of the eight routine/general cases answered 409
+         # `no_senior_available` for a tier the registry said existed. The
+         # registry and the roster now agree, which is the invariant that
+         # matters - see test_specialty_senior_flag_matches_the_roster.
+         {"name": "Dr. Venkataraman", "specialty": "general_medicine", "senior": True, "load": 2, "capacity": 14},
      ]},
 ]
 

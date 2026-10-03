@@ -328,8 +328,23 @@ def test_allocator_checks_medicine_stock():
     need = {"icu": 0, "platelets": 0, "specialist": None,
             "medicines": {"streptokinase": 3}}
     eligible, _ = agent2_allocator.run(need)
-    # Rampur holds 1 and Lakhanpur 2; only City General (6) can supply 3.
-    assert {h["name"] for h in eligible} == {"City General"}
+    got = {h["name"] for h in eligible}
+
+    # Asserted as the rule rather than a hardcoded roster, because the roster
+    # is meant to change. `specialist: None` resolves to general_medicine, so a
+    # facility qualifies only if it stocks >= 3 AND has a general physician
+    # with free capacity - which is why the Medical College counts now that it
+    # actually staffs one. The earlier literal ("City General" only) was passing
+    # on an accident: h5 held 18 streptokinase all along and was excluded
+    # solely because its `specialties` set claimed general medicine while no
+    # general physician was rostered there.
+    can_supply = {h["name"] for h in ds.hospitals
+                  if ds.stock_of(h, "streptokinase") >= 3
+                  and ds.doctors_of(h, "general_medicine")}
+    assert got == can_supply, (got, can_supply)
+    assert "City General" in got          # 6 in stock, still eligible
+    assert "Rampur District Hospital" not in got    # holds 1
+    assert "Lakhanpur CHC" not in got              # holds 2
 
 
 # ------------------------------------------------------------------ agent 3
@@ -1048,6 +1063,92 @@ def test_escalate_moves_the_case_to_the_specialist_queue(client):
 
     # And the senior doctor's own queue now contains it.
     assert any(c["id"] == pid for c in client.get(f"/queue/doctors/{body['doctor']}").json()["cases"])
+
+
+def test_specialty_senior_flag_matches_the_roster():
+    """`SPECIALTIES[s]["senior"]` must mean a senior consultant actually exists.
+
+    The flag and the rosters are two separate hand-maintained lists, and they
+    drifted: general_medicine was flagged `senior: True` while no facility
+    staffed a senior general physician. `facilities_with(...,
+    senior_only=True)` then returned an empty list, so escalating any routine
+    case was refused with `no_senior_available` - for a tier the registry
+    claimed existed. Nothing else in the system checks this, because
+    `escalate` failing is a legitimate 409 in its own right.
+
+    Asserted both ways: a flag without a consultant is a promise the routing
+    layer cannot keep, and a consultant without the flag is unreachable by
+    escalation.
+    """
+    for specialty, meta in ds.SPECIALTIES.items():
+        staffed = any(ds.doctors_of(h, specialty, senior_only=True)
+                      for h in ds.hospitals)
+        assert meta["senior"] == staffed, (
+            f"{specialty}: SPECIALTIES says senior={meta['senior']} but "
+            f"staffed={staffed}. An escalate to this specialty would "
+            f"{'dead-end' if meta['senior'] else 'never be allowed'}.")
+
+
+def test_every_specialty_can_be_escalated(client):
+    """Escalation must be a real routing action for *every* case type.
+
+    End-to-end through the endpoint on purpose. The unit test above pins the
+    registry to the roster, but the bug that shipped was in the HTTP handler:
+    it built its refusal hints in a dict literal, which evaluates every value,
+    so the `no_senior_available` branch also evaluated the
+    `target_cannot_take_resources` f-string and raised KeyError('facility') -
+    answering a routine-case escalate with a 500 instead of a 409 that
+    explains it. Calling `agent3_routing.reassign` directly, as the
+    no-senior test does, cannot see that class of failure at all.
+
+    Driven off `ds.case_types` so a case type added later is covered without
+    editing this test, and so the assertion is "every type escalates" rather
+    than a list that can quietly fall behind the catalogue.
+    """
+    for case_type in ds.case_types:
+        r = client.post("/patients",
+                        json={"name": f"Escalate {case_type}",
+                              "case_type": case_type})
+        assert r.status_code == 200, f"{case_type}: {r.text}"
+        pid = r.json()["id"]
+
+        d = client.post(f"/patients/{pid}/decide", json={"decision": "escalate"})
+        assert d.status_code == 200, f"{case_type}: {d.text}"
+        assert d.json()["status"] == "awaiting_specialist", case_type
+
+
+def test_escalation_refusal_is_a_409_with_a_readable_hint(client):
+    """A refusal must explain itself in prose, and must never be a 500.
+
+    The structured 409 body is what the console renders, so an empty or
+    unstringifiable `detail` here is a dead end for the reviewing doctor: they
+    are told the escalation failed and not why.
+    """
+    # `chronic` routes to general_medicine directly (`normal` reaches it via
+    # resolve_specialty("none"), but the explicit type states the intent).
+    r = client.post("/patients", json={"name": "No Senior", "case_type": "chronic"})
+    pid = r.json()["id"]
+
+    # Every general-medicine reviewer is full, and the escalation gate requires
+    # a *free* senior, so there is genuinely nowhere to send this case.
+    for h in ds.hospitals:
+        for doc in h["doctors"]:
+            if doc["specialty"] == "general_medicine":
+                doc["load"] = doc["capacity"]
+
+    d = client.post(f"/patients/{pid}/decide", json={"decision": "escalate"})
+    assert d.status_code == 409, d.text
+    body = d.json()["detail"]
+    assert body["error"] == "no_senior_available"
+    assert isinstance(body["hint"], str) and body["hint"].strip(), body
+    # The two refusal branches carry different keys - `facility`/`short` versus
+    # `specialty` only. Formatting one must not require the other's, which is
+    # the exact KeyError the old hint dict raised on this path.
+    assert "cannot supply" not in body["hint"]
+
+    # And nothing moved.
+    still = client.get(f"/patients/{pid}").json()
+    assert still["status"] == "awaiting_review"
 
 
 def test_decision_is_recorded_and_shown_to_the_patient(client):
