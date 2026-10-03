@@ -213,21 +213,29 @@ def decide_patient(patient_id: int, body: DecisionIn):
                 409, "Case is not routed to a doctor, so it cannot be escalated "
                      "to one. Re-submit the case.")
         if "error" in moved:
-            hints = {
-                "no_senior_available":
-                    f"No senior {specialty_label(moved['specialty'])} is free "
-                    f"network-wide right now.",
-                "target_cannot_take_resources":
-                    f"{moved['facility']} cannot supply "
-                    f"{', '.join(moved['short'])} for this case, so the "
-                    f"consultant was not moved and the case stays with the "
-                    f"referring doctor.",
-            }
+            # One hint per error, selected before it is built. A dict literal
+            # evaluates *every* value, so writing all the hints up front meant
+            # the `no_senior_available` path also evaluated the
+            # `target_cannot_take_resources` f-string - and that error carries
+            # `facility`/`short` while `no_senior_available` does not. The
+            # refusal therefore raised KeyError('facility') and answered the
+            # doctor with a 500 instead of the 409 that explains it. Look the
+            # key up first, then format only the branch that applies.
+            error = moved["error"]
+            if error == "no_senior_available":
+                hint = (f"No senior {specialty_label(moved['specialty'])} is "
+                        f"free network-wide right now.")
+            elif error == "target_cannot_take_resources":
+                hint = (f"{moved['facility']} cannot supply "
+                        f"{', '.join(moved['short'])} for this case, so the "
+                        f"consultant was not moved and the case stays with "
+                        f"the referring doctor.")
+            else:
+                hint = "Escalation was refused; nothing changed."
             raise HTTPException(409, {
-                "error": moved["error"],
+                "error": error,
                 "detail": moved,
-                "hint": hints.get(moved["error"],
-                                  "Escalation was refused; nothing changed."),
+                "hint": hint,
             })
         p["status"] = "awaiting_specialist"
         if moved.get("moved"):

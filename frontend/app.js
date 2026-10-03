@@ -131,6 +131,9 @@ const state = {
   queue: { stats: null, patient_queue: [], doctor_queues: [], specialist_queues: [] },
   scope: 'doctors',        // doctors | network | specialists
   filter: 'all',
+  // Secondary lens set by the header tiles, orthogonal to severity: which
+  // cases lack a doctor, and which one has waited longest. `null` = no lens.
+  lens: null,              // null | unassigned | longest
   query: '',
   sort: { inv: { key: 'name', dir: 1 }, cov: { key: 'days_of_cover', dir: 1 } },
   autoSec: 15,
@@ -160,15 +163,53 @@ function debounce(fn, ms) {
   return function (...a) { clearTimeout(t); t = setTimeout(() => fn.apply(this, a), ms); };
 }
 
-async function api(path, opts) {
-  const res = await fetch(API_BASE + path, opts);
+async function api(path, opts = {}) {
+  const o = { ...opts };
+  // Default the JSON content type for any request that carries a body.
+  //
+  // `fetch` sends a string body as `text/plain;charset=UTF-8`, which FastAPI
+  // will not parse - it answers 422 with a list of validation errors, and
+  // `String([{...}])` is "[object Object]". So a call site that forgot the
+  // header failed with a message that named neither the endpoint nor the
+  // cause, on a button that otherwise worked everywhere else in the console.
+  // Set it here, once, instead of trusting every call site to remember.
+  if (o.body != null && !(o.headers && o.headers['Content-Type'])) {
+    o.headers = { ...(o.headers || {}), 'Content-Type': 'application/json' };
+  }
+  const res = await fetch(API_BASE + path, o);
   let body = null;
   try { body = await res.json(); } catch (e) { /* empty or non-JSON body */ }
-  if (!res.ok) {
-    const detail = (body && (body.detail || body.message)) || `HTTP ${res.status}`;
-    throw new Error(detail);
-  }
+  if (!res.ok) throw new Error(errorText(body, res.status));
   return body;
+}
+
+// Turn an error body into one readable line.
+//
+// The decision endpoints refuse with a *structured* 409 - `{error, detail,
+// hint}` - so that a refusal says which check failed and what to do next.
+// `new Error(object)` stringifies to "[object Object]", which told the doctor
+// nothing at all about why their escalate was refused. Prefer the hint, fall
+// back to the detail, then to whatever the body offers, then the status.
+function errorText(body, status) {
+  const d = body && (body.detail !== undefined ? body.detail : body.message);
+  if (Array.isArray(d)) {
+    // FastAPI request-validation errors. `loc` ends with the offending field.
+    const msgs = d.map(e => `${(e.loc || []).slice(-1)[0] || 'request'}: ${e.msg || 'invalid'}`);
+    return msgs.length ? msgs.join('; ') : `HTTP ${status}`;
+  }
+  if (typeof d === 'string' && d.trim()) return d;
+  if (d && typeof d === 'object') {
+    const parts = [];
+    if (d.hint) parts.push(d.hint);
+    else if (d.error) parts.push(String(d.error).replace(/_/g, ' '));
+    if (!parts.length && d.detail && typeof d.detail === 'object') {
+      const inner = d.detail.error;
+      if (inner) parts.push(String(inner).replace(/_/g, ' '));
+    }
+    if (parts.length) return parts.join(' ');
+  }
+  if (typeof d === 'string' && d.trim()) return d;
+  return `HTTP ${status}`;
 }
 
 /* ---------------- toasts ---------------- */
@@ -675,29 +716,104 @@ function paintCounts() {
 }
 
 /* ---- header tiles ---- */
+
+// Every tile is a filter on the queue below it, so a number a supervisor is
+// looking at is a thing they can act on rather than just read.
+//
+// The tile's identity is the `key` slug in `data-tile`, not its visible label.
+// Those are deliberately separate: the label is copy that carries the unit
+// ("longest wait (min)") and can be reworded for clarity, while the key is the
+// contract with `TILES` below. Keying the lookup on the label meant the copy
+// and the behaviour were the same string, so improving either one silently
+// broke the other.
+//
+// A tile showing zero is disabled rather than clickable: filtering to an empty
+// set would only ever render the "no matching cases" card, and a dead control
+// that looks live is worse than one that looks inert.
 function statTiles() {
   const s = state.queue.stats;
   if (!s) return '';
   const sev = s.by_severity || {};
+  const on = (filter, lens, scope) =>
+    (state.filter === filter && (lens || null) === (state.lens || null)
+     && state.scope === scope) ? ' on' : '';
+
+  const tile = (key, n, label, cls, filter, lens, scope, disabled, title) =>
+    `<button class="stat-tile ${cls}${on(filter, lens, scope)}" data-tile="${key}"
+       ${disabled ? 'disabled' : ''} ${title ? `title="${esc(title)}"` : ''}>
+       <span class="n">${n}</span><span class="l">${esc(label)}</span></button>`;
+
+  const zero = v => !v;
   return `<div class="stat-tiles">
-    <div class="stat-tile"><span class="n">${s.open}</span><span class="l">in queue</span></div>
-    <div class="stat-tile red"><span class="n">${sev.Red || 0}</span><span class="l">critical</span></div>
-    <div class="stat-tile warn"><span class="n">${sev.Yellow || 0}</span><span class="l">moderate</span></div>
-    <div class="stat-tile"><span class="n">${sev.Green || 0}</span><span class="l">routine</span></div>
-    <div class="stat-tile ${s.escalated_pending ? 'accent' : ''}"><span class="n">${s.escalated_pending}</span><span class="l">with senior</span></div>
-    <div class="stat-tile ${s.unassigned ? 'bad' : ''}"><span class="n">${s.unassigned}</span><span class="l">unassigned</span></div>
-    <div class="stat-tile"><span class="n">${s.longest_wait_minutes}</span><span class="l">longest wait (min)</span></div>
+    ${tile('open', s.open, 'in queue', '', 'all', null, 'network', zero(s.open),
+           'Every open case, highest priority first')}
+    ${tile('red', sev.Red || 0, 'critical', 'red', 'Red', null, 'network',
+           zero(sev.Red), 'Red cases only')}
+    ${tile('yellow', sev.Yellow || 0, 'moderate', 'warn', 'Yellow', null, 'network',
+           zero(sev.Yellow), 'Yellow cases only')}
+    ${tile('green', sev.Green || 0, 'routine', '', 'Green', null, 'network',
+           zero(sev.Green), 'Green cases only')}
+    ${tile('senior', s.escalated_pending, 'with senior',
+           s.escalated_pending ? 'accent' : '', 'all', null, 'specialists',
+           zero(s.escalated_pending), 'Open the senior consultant queues')}
+    ${tile('unassigned', s.unassigned, 'unassigned',
+           s.unassigned ? 'bad' : '', 'all', 'unassigned', 'network',
+           zero(s.unassigned), 'Cases with no reviewing doctor')}
+    ${tile('longest', s.longest_wait_minutes, 'longest wait (min)', '',
+           'all', 'longest', 'network', zero(s.open),
+           'Show only the case that has waited longest')}
   </div>`;
 }
+
+// The one place a tile's key is turned into queue state. Tiles drive the
+// existing filter/lens/scope triple rather than a parallel mechanism, so the
+// severity pills and the tiles can never disagree about what is being shown.
+function applyTile(key) {
+  const t = state.queue.stats ? TILES[key] : null;
+  if (!t) return;
+  state.filter = t.filter;
+  state.lens = t.lens || null;
+  state.scope = t.scope;
+  renderQueue();
+}
+
+const TILES = {
+  'open':       { filter: 'all',    lens: null,        scope: 'network' },
+  'red':        { filter: 'Red',    lens: null,        scope: 'network' },
+  'yellow':     { filter: 'Yellow', lens: null,        scope: 'network' },
+  'green':      { filter: 'Green',  lens: null,        scope: 'network' },
+  'senior':     { filter: 'all',    lens: null,        scope: 'specialists' },
+  'unassigned': { filter: 'all',    lens: 'unassigned', scope: 'network' },
+  'longest':    { filter: 'all',    lens: 'longest',    scope: 'network' },
+};
 
 /* ---- filters ---- */
 function queueRows() {
   return state.queue.patient_queue || [];
 }
 
+// Cases matching the active lens, before severity and search are applied.
+//
+// These are the non-severity questions the header tiles ask. Kept separate
+// from `state.filter` because they answer a different question - "which cases
+// have nobody?" and "who has waited longest?" are not severities - and a
+// single overloaded filter string would make the two indistinguishable in the
+// UI and impossible to clear independently.
+function lensRows() {
+  const rows = queueRows();
+  if (state.lens === 'unassigned') return rows.filter(p => !p.doctor);
+  if (state.lens === 'longest') {
+    if (!rows.length) return rows;
+    const worst = rows.reduce((a, b) =>
+      (Number(b.waiting_minutes) || 0) > (Number(a.waiting_minutes) || 0) ? b : a);
+    return rows.filter(p => p.id === worst.id);
+  }
+  return rows;
+}
+
 function filteredQueue() {
   const q = state.query.trim().toLowerCase();
-  return queueRows().filter(p => {
+  return lensRows().filter(p => {
     if (state.filter !== 'all' && p.severity !== state.filter) return false;
     if (!q) return true;
     return [p.name, p.doctor, p.hospital, p.case_label, p.severity, p.specialty_label]
@@ -706,15 +822,25 @@ function filteredQueue() {
 }
 
 function renderFilters() {
-  const counts = { all: queueRows().length };
-  queueRows().forEach(p => { counts[p.severity] = (counts[p.severity] || 0) + 1; });
+  const scoped = lensRows();
+  const counts = { all: scoped.length };
+  scoped.forEach(p => { counts[p.severity] = (counts[p.severity] || 0) + 1; });
   const keys = ['all', 'Red', 'Yellow', 'Green'].filter(k => k === 'all' || counts[k]);
   $('statusFilters').innerHTML = keys.map(k => {
     const label = k === 'all' ? 'All' : k;
     return `<button class="filter ${state.filter === k ? 'active' : ''}" data-f="${k}">${esc(label)} <span class="n">${counts[k] || 0}</span></button>`;
   }).join('');
   $('statusFilters').querySelectorAll('[data-f]').forEach(b =>
-    b.addEventListener('click', () => { state.filter = b.dataset.f; renderQueue(); }));
+    b.addEventListener('click', () => {
+      state.filter = b.dataset.f;
+      // Picking a severity is a fresh question, so drop any lens left over
+      // from a tile. Intersecting "unassigned" with "Red" is a real query, but
+      // it is never what someone clicking a severity pill meant, and the counts
+      // beside the pills are computed within the active lens - so leaving it
+      // set would show a pill reading 7 above an empty list.
+      state.lens = null;
+      renderQueue();
+    }));
 }
 
 /* The AI's advice, shown next to the case. Labelled as a recommendation
@@ -815,25 +941,43 @@ function renderQueue() {
     </div>`;
 
   $('scopeSeg').querySelectorAll('[data-scope]').forEach(b =>
-    b.addEventListener('click', () => { state.scope = b.dataset.scope; renderQueue(); }));
+    b.addEventListener('click', () => {
+      state.scope = b.dataset.scope;
+      // The senior-queue view renders its own groups and ignores the row
+      // filter, so keeping a lens set here would hide it silently behind an
+      // invisible filter. Drop it and show the senior queues as they are.
+      if (b.dataset.scope === 'specialists') state.lens = null;
+      renderQueue();
+    }));
+
+  el.querySelectorAll('[data-tile]').forEach(b =>
+    b.addEventListener('click', () => applyTile(b.dataset.tile)));
 
   if (state.scope === 'specialists') return renderSpecialistQueue(el);
   renderFilters();
 
   const rows = filteredQueue();
-  const total = queueRows().length;
+  const total = lensRows().length;
+  const lensNote = state.lens === 'unassigned' ? ' with no reviewing doctor'
+                 : state.lens === 'longest'    ? ', longest wait first' : '';
   $('queueCount').textContent = rows.length === total
-    ? `${total} case${total === 1 ? '' : 's'}`
+    ? `${total} case${total === 1 ? '' : 's'}${lensNote}`
     : `${rows.length} of ${total} shown`;
 
-  if (!total) {
+  if (!queueRows().length) {
     el.innerHTML += `<div class="card empty">${svg('steth')}<strong>Queue is empty</strong>
       <p>Submit a report and it will appear here, already ordered by clinical priority.</p></div>`;
     return;
   }
   if (!rows.length) {
+    // Reached when the active lens or severity has no matches. Say which one,
+    // because "no matching cases" next to a queue holding 22 open tells the
+    // reader nothing about what to undo.
+    const why = state.lens === 'unassigned' ? 'Every open case has a reviewing doctor.'
+               : state.lens === 'longest'    ? 'Nothing is waiting.'
+               : `No ${state.filter} cases in this view.`;
     el.innerHTML += `<div class="card empty">${svg('search')}<strong>No matching cases</strong>
-      <p>Try a different search term or clear the severity filter.</p></div>`;
+      <p>${esc(why)} Try a different search term, or clear the filter.</p></div>`;
     return;
   }
 
